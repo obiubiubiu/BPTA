@@ -55,6 +55,7 @@ double Basic_information::Caculate_mindist_global(int workerid, int taskid, vect
  */
 void Basic_information::Compute_global_PTPW_Group(vector<vector<pair<int, double>>> &PT, vector<vector<pair<int, double>>> &PW)
 {
+
     // 计算PT,PW
     int Number_current_taskGroup = global_tasks.size();
     int Number_current_workerGroup = global_workers.size();
@@ -65,52 +66,103 @@ void Basic_information::Compute_global_PTPW_Group(vector<vector<pair<int, double
         {
             if (!(global_tasks[i].Deadline < global_workers[j].startTime || global_tasks[i].startTime > global_workers[j].endTime)) // 满足时间约束
             {
-                if (global_tasks[i].Minscore <= global_workers[j].score) // 否则绕路距离为0！！错误，改为否则绕路距离为无穷大，正确：分数不满足时不会进入到偏好列表中
+                // 工人的分数满足任务的最小约束                                                                                    //为何错误？？？？
+                global_detour_distance[i][j] = Caculate_mindist_global(j, i, global_POI); // 计算每个任务和每个worker之间的最小绕路距离
+                if (global_detour_distance[i][j] <= global_workers[j].range)
                 {
-                    // 工人的分数满足任务的最小约束                                                                                    //为何错误？？？？
-                    global_detour_distance[i][j] = Caculate_mindist_global(j, i, global_POI); // 计算每个任务和每个worker之间的最小绕路距离
+                    double stime = max(global_workers[j].startTime, global_tasks[i].startTime); // 开始时间
+                    double etime = min(global_workers[j].endTime, global_tasks[i].Deadline);    // 结束时间
+                    double subdis = global_Worker_subTrajectoryDis[j][global_POI[i][j]];        // 工人j到任务taskid的绕路点的距离
 
-                    if (global_detour_distance[i][j] <= global_workers[j].range)
+                    double taskCost = subdis + global_detour_distance[i][j];               // 任务耗时=前路程+绕路
+                    double workCost = global_Sumdis[j] + 2 * global_detour_distance[i][j]; // 工人路程耗时=自身路径+2*绕路
+
+                    if (taskCost < (etime - stime) * speed && workCost < (global_workers[j].endTime - stime) * speed) // 任务和路程的重合时间为任务的时间，重合的开始时间和工人的截止时间为工人的时间
                     {
-                        double stime = max(global_workers[j].startTime, global_tasks[i].startTime); // 开始时间
-                        double etime = min(global_workers[j].endTime, global_tasks[i].Deadline);    // 结束时间
-                        double subdis = global_Worker_subTrajectoryDis[j][global_POI[i][j]];        // 工人j到任务taskid的绕路点的距离
-
-                        double taskCost = subdis + global_detour_distance[i][j];               // 任务耗时=前路程+绕路
-                        double workCost = global_Sumdis[j] + 2 * global_detour_distance[i][j]; // 工人路程耗时=自身路径+2*绕路
-
-                        if (taskCost < (etime - stime) * speed && workCost < (global_workers[j].endTime - stime) * speed) // 任务和路程的重合时间为任务的时间，重合的开始时间和工人的截止时间为工人的时间
+                        double preference1 = global_tasks[i].Reward - 2 * global_detour_distance[i][j] * c; // 工人的偏好值
+                        if (preference1 > 0)                                                                // 利润大于0
                         {
-                            double preference1 = global_tasks[i].Reward - 2 * global_detour_distance[i][j] * c; // 工人的偏好值
-                            if (preference1 > 0)                                                                // 利润大于0
-                            {
-                                double preference2 = global_workers[j].score; // 任务的偏好值
-                                PT[i].push_back(make_pair(j, preference2));
-                                PW[j].push_back(make_pair(i, preference1));
-                                cout << "(任务,工人)可配对情况：  (" << i << "," << j << ")" << endl;
-                                num++;
-                            }
-                            else
-                            {
-                                // cout<<taskid<<"\t"<<j<<"距离太远!"<<endl;
-                            }
+                            PW[j].push_back(make_pair(i, preference1)); // 工人的偏好列表
+                            num++;
+                        }
+                        if (global_tasks[i].Minscore <= global_workers[j].score) // 否则绕路距离为0！！错误，改为否则绕路距离为无穷大，正确：分数不满足时不会进入到偏好列表中
+                        {
+                            double preference2 = global_workers[j].score; // 任务的偏好值
+                            PT[i].push_back(make_pair(j, preference2));   // 任务的偏好列表
                         }
                     }
                 }
             }
+
+            // if (!(global_tasks[i].Deadline < global_workers[j].startTime || global_tasks[i].startTime > global_workers[j].endTime)) // 满足时间约束
+            // {
+            //     if (global_tasks[i].Minscore <= global_workers[j].score) // 否则绕路距离为0！！错误，改为否则绕路距离为无穷大，正确：分数不满足时不会进入到偏好列表中
+            //     {
+            //         // 工人的分数满足任务的最小约束                                                                                    //为何错误？？？？
+            //         global_detour_distance[i][j] = Caculate_mindist_global(j, i, global_POI); // 计算每个任务和每个worker之间的最小绕路距离
+
+            //         if (global_detour_distance[i][j] <= global_workers[j].range)
+            //         {
+            //             double stime = max(global_workers[j].startTime, global_tasks[i].startTime); // 开始时间
+            //             double etime = min(global_workers[j].endTime, global_tasks[i].Deadline);    // 结束时间
+            //             double subdis = global_Worker_subTrajectoryDis[j][global_POI[i][j]];        // 工人j到任务taskid的绕路点的距离
+
+            //             double taskCost = subdis + global_detour_distance[i][j];               // 任务耗时=前路程+绕路
+            //             double workCost = global_Sumdis[j] + 2 * global_detour_distance[i][j]; // 工人路程耗时=自身路径+2*绕路
+
+            //             if (taskCost < (etime - stime) * speed && workCost < (global_workers[j].endTime - stime) * speed) // 任务和路程的重合时间为任务的时间，重合的开始时间和工人的截止时间为工人的时间
+            //             {
+            //                 double preference1 = global_tasks[i].Reward - 2 * global_detour_distance[i][j] * c; // 工人的偏好值
+            //                 if (preference1 > 0)                                                                // 利润大于0
+            //                 {
+            //                     double preference2 = global_workers[j].score; // 任务的偏好值
+            //                     PT[i].push_back(make_pair(j, preference2));
+            //                     PW[j].push_back(make_pair(i, preference1));
+            //                     cout << "(任务,工人)可配对情况：  (" << i << "," << j << ")" << endl;
+            //                     num++;
+            //                 }
+            //                 else
+            //                 {
+            //                     // cout<<taskid<<"\t"<<j<<"距离太远!"<<endl;
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
         }
     }
     cout << "总的任意匹配对数：" << num << endl;
+    ofstream outFile;
+    outFile.open("work_Prefer", ios::out);
     for (int i = 0; i < global_workers.size(); i++) // 计算工人偏好列表
     {
         // 对工人的偏序列表排序
         sort(PW[i].begin(), PW[i].end(), cmp);
+        outFile << "工人" << i << ",";
+
+        for (auto p : PW[i])
+        {
+            outFile << "(" << p.first << "/" << p.second << ")"
+                    << ",";
+        }
+        outFile << endl;
     }
+    outFile.close();
+    ofstream outFile1;
+    outFile1.open("task_Prefer ", ios::out);
     for (int i = 0; i < global_tasks.size(); i++) // 计算工人偏好列表
     {
         // 对工人的偏序列表排序
         sort(PT[i].begin(), PT[i].end(), cmp);
+        outFile1 << i << ",";
+        for (auto p : PT[i])
+        {
+            outFile1 << "(" << p.first << "/" << p.second << ")"
+                     << ",";
+        }
+        outFile1 << endl;
     }
+    outFile1.close();
 
     cout << endl;
 }
@@ -414,12 +466,14 @@ double Basic_information::Caculate_Task_Satisfaction_avg(vector<vector<int>> &CT
 {
 
     double sum = 0;
+    int matchnum = 0;
 
     for (int i = 0; i < Number_Worker; i++)
     {
         int workerID = i;
         for (int j = 0; j < CT_Worker[i].size(); j++)
         {
+            matchnum++;
             int taskid = CT_Worker[i][j];
 
             /*
@@ -442,13 +496,17 @@ double Basic_information::Caculate_Task_Satisfaction_avg(vector<vector<int>> &CT
             {
                 int index = distance(PT[taskid].begin(), it);
                 double s = ((PT[taskid][index].second - 0) / (PT[taskid][0].second - 0));
+                // double s = ((PT[taskid][0].second - 0) * (PT.size() - index) / PT.size());
+                // double s = ((PT[taskid][index].second - 0) / (PT[taskid][0].second - 0)) * ((PT.size() - index) / PT.size());
+
                 //      cout<<s<<"任务的满意度"<<endl;
                 sum = sum + s;
             }
         }
     }
 
-    return sum / Number_Task * 100;
+    // return sum / Number_Task * 100;
+    return sum / matchnum * 100;
 }
 /***
  * 打印工人满意度avg
@@ -456,11 +514,14 @@ double Basic_information::Caculate_Task_Satisfaction_avg(vector<vector<int>> &CT
 double Basic_information::Caculate_Worker_Satisfaction_avg(vector<vector<int>> &CT_Worker, vector<vector<pair<int, double>>> &PW)
 {
     double allsum = 0;
+    int matchNumber = 0;
     for (int i = 0; i < Number_Worker; i++)
     {
         int workerID = i;
         if (CT_Worker[i].size() != 0)
         {
+
+            matchNumber++;
             double sum = 0, avg = 0;
             for (int j = 0; j < CT_Worker[i].size(); j++)
             {
@@ -482,7 +543,12 @@ double Basic_information::Caculate_Worker_Satisfaction_avg(vector<vector<int>> &
                 if (it != PW[workerID].end())
                 {
                     int index = distance(PW[workerID].begin(), it);
-                    double s = ((PW[workerID][index].second - 0) / (PW[workerID][0].second - 0));
+                    // double s = ((PW[workerID][index].second - 0) / (PW[workerID][0].second - 0)); // 最初诗婷
+                    // double s = ((PW[workerID][0].second - 0) * (PW[workerID].size() - index)) / PW[workerID].size();
+                    // double s = ((PW[workerID][index].second - 0) / (PW[workerID][0].second - 0)) * ((PW[workerID].size() - index) / PW[workerID].size());
+                    double s = ((PW[workerID][index].second - 0) / (PW[workerID][0].second - 0)); // 最初诗婷
+                    if (PW[workerID].size() < CT_Worker[i].size())
+                        cout << PW[workerID].size() << " 这不能为0： " << CT_Worker[i].size() << "  " << workerID << endl;
                     //      cout<<s<<"任务的满意度"<<endl;
                     sum = sum + s;
                 }
@@ -492,7 +558,8 @@ double Basic_information::Caculate_Worker_Satisfaction_avg(vector<vector<int>> &
             // cout<<allsum<<endl;
         }
     }
-    return allsum / Number_Worker * 100;
+    // return allsum / Number_Worker * 100;
+    return allsum / matchNumber * 100;
 }
 /***
  * 打印工人满意度总和
@@ -1213,7 +1280,7 @@ void Basic_information::ShowCTMatching(vector<vector<int>> &CT_Worker, int curre
         {
             cout << "配对:（工人" << i << "，任务" << CT_Worker[i][j] << endl;
             // cout << "work时间:\t" << global_workers[i].startTime << "\t" << global_workers[i].endTime << "\t";
-            cout << "task时间:\t" << global_tasks[CT_Worker[i][j]].startTime << "\t\t" << global_tasks[CT_Worker[i][j]].Deadline << endl;
+            // cout << "task时间:\t" << global_tasks[CT_Worker[i][j]].startTime << "\t\t" << global_tasks[CT_Worker[i][j]].Deadline << endl;
 
             sumtasks++;
         }
@@ -1224,6 +1291,69 @@ void Basic_information::ShowCTMatching(vector<vector<int>> &CT_Worker, int curre
     cout << "匹配的任务总数:" << sumtasks << endl;
     cout << "匹配的工人总数:" << workers << endl;
 }
+
+void Basic_information::ShowCTMatching(const char *filename, vector<vector<int>> &CT_Worker, int current_Number_Workers) // 修改
+{
+    int sumtasks = 0;
+    int workers = 0;
+    ofstream outFile;
+    outFile.open(filename, ios::out);
+    // for (int i = 0; i < current_Number_Workers; i++)
+    // {
+    //     for (int j = 0; j < CT_Worker[i].size(); j++)
+    //     {
+    //         cout << "配对:" << i << "\t" << CT_Worker[i][j] << endl;
+    //         if (i == CT_Worker[i].size() - 1)
+    //             outFile << d[i] << endl;
+    //         else
+    //             outFile << d[i] << ",";
+    //         // cout << "work:\t" << worker[i].startTime << "\t" << worker[i].endTime << endl;
+    //         // cout << "task:\t" << task[CT_Worker[i][j]].startTime << "\t" << task[CT_Worker[i][j]].Deadline << endl;
+    //         sumtasks++;
+    //     }
+    //     if (CT_Worker[i].size() != 0)
+    //         workers++;
+    // }
+    int mmm = 0;
+    for (auto d : CT_Worker) // 遍历待写入的数据
+    {
+        if (d.size() == 0)
+        {
+            mmm++;
+            continue;
+        }
+        outFile << "work:" << mmm++ << "    task:" << endl;
+        for (int i = 0; i < d.size(); i++)
+        {
+            if (i == d.size() - 1)
+                outFile << d[i] << endl;
+            else
+                outFile << d[i] << ",";
+            sumtasks++;
+        }
+
+        if (d.size() != 0)
+            workers++;
+    }
+
+    // for (int j = 0; j < CT_Worker[i].size(); j++)
+    // {
+    //     cout << "配对:（工人" << i << "，任务" << CT_Worker[i][j] << endl;
+    //     // cout << "work时间:\t" << global_workers[i].startTime << "\t" << global_workers[i].endTime << "\t";
+    //     // cout << "task时间:\t" << global_tasks[CT_Worker[i][j]].startTime << "\t\t" << global_tasks[CT_Worker[i][j]].Deadline << endl;
+    //     if (i == CT_Worker[i].size() - 1)
+    //         outFile << CT_Worker[i][j] << "\n"
+    //                 << endl;
+    //     else
+    //         outFile << CT_Worker[i][j] << ",";
+    //     sumtasks++;
+    // }
+
+    outFile.close();
+    cout << "匹配的任务总数:" << sumtasks << endl;
+    cout << "匹配的工人总数:" << workers << endl;
+}
+
 /**ShowCTMatching
  * 有两种方式是因为我懒得修改了。
  * 其中vector<vector<int>>指的全局
@@ -1416,9 +1546,9 @@ void Basic_information::print_info()
 void Basic_information::printf_Satisfaction_Results(string alg_name, double run_time)
 {
 
-    ShowCTMatching(global_CT_Worker, Number_Worker); // 输出配对
-    double task_satis_results;                       // 任务满意度
-    double worker_satis_results;                     // 工人满意度
+    ShowCTMatching(("../" + alg_name + ".csv").data(), global_CT_Worker, Number_Worker); // 输出配对
+    double task_satis_results;                                                           // 任务满意度
+    double worker_satis_results;                                                         // 工人满意度
 
     if (Satisfaction_sign)
     {                                                                                         // 输出平均满意度
@@ -1574,19 +1704,17 @@ void Basic_information::Compute_PTPW_Group_workerBatch(vector<vector<pair<int, d
 
                     if (current_detour_distance[i][j] <= current_workerGroup[j].worker.range)
                     {
+                        // 工人偏好列表
                         double preference1 = current_taskGroup[i].task.Reward - 2 * current_detour_distance[i][j] * c; // 工人的偏好值
                         if (preference1 > 0)                                                                           // 利润大于0
                         {
-                            double preference2 = current_workerGroup[j].worker.score; // 任务的偏好值
-                            current_PT[i].push_back(make_pair(j, preference2));
-                            cout << "\t\t当前分组内偏好计算, 任务" << i << "\t工人" << j << "偏好计算成功" << endl;
-                            cout << "\t\t原始任务:" << current_taskGroup[i].Original_Local << ",工人" << current_workerGroup[j].Original_Local << "匹配成功!" << endl;
-
                             current_PW[j].push_back(make_pair(i, preference1));
                         }
-                        else
+                        // 任务偏好列表
+                        double preference2 = current_workerGroup[j].worker.score; // 任务的偏好值
+                        if (current_taskGroup[i].task.Minscore <= preference2)    // 否则绕路距离为0！！错误，改为否则绕路距离为无穷大，正确：分数不满足时不会进入到偏好列表中
                         {
-                            // cout<<taskid<<"\t"<<j<<"距离太远!"<<endl;
+                            current_PT[i].push_back(make_pair(j, preference2)); // 任务的偏好列表
                         }
                     }
                 }
@@ -1639,16 +1767,15 @@ void Basic_information::match_WorkerTask_workerBatch(vector<CURRENT_TASK_GROUP> 
      * 偏好列表ORDER
      */
 
-    iterator_Match_WorkBatch(current_workerGroup, current_taskGroup, current_PW,
-                             current_Group_workerAD, current_detour_distance, current_Group_worker_subTrajectoryDis,
+    iterator_Match_WorkBatch(current_workerGroup, current_taskGroup, current_PW, current_PT, current_Group_workerAD, current_detour_distance, current_Group_worker_subTrajectoryDis,
                              current_CT_Worker, current_MaxDistanceTask, &current_task_NeedTime, current_poi, current_window_endTime);
 
     ShowCTMatching(current_CT_Worker, current_Number_Worker); // 输出配对
 }
 
-void Basic_information::iterator_Match_WorkBatch(vector<CURRENT_WORKERS_GROUP> &current_workerGroup, vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<vector<pair<int, double>>> &current_PW,
+void Basic_information::iterator_Match_WorkBatch(vector<CURRENT_WORKERS_GROUP> &current_workerGroup, vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<vector<pair<int, double>>> &current_PW, vector<vector<pair<int, double>>> &current_PT,
                                                  vector<double> &current_Group_workerAD, vector<double> current_detour_distance[], vector<vector<double>> &current_Group_worker_subTrajectoryDis,
-                                                 vector<int> CT_Worker[], double MaxDistanceTask[], double *current_task_NeedTime, vector<int> current_poi[], double nowtime)
+                                                 vector<int> current_CT_Worker[], double MaxDistanceTask[], double *current_task_NeedTime, vector<int> current_poi[], double nowtime)
 {
     int Number_Worker = current_workerGroup.size();
     int Number_Task = current_taskGroup.size();
@@ -1699,14 +1826,19 @@ void Basic_information::iterator_Match_WorkBatch(vector<CURRENT_WORKERS_GROUP> &
                     // cout<<"当前访问的任务:"<<current_task_id <<endl;
                     CurrentTaskInPW[i]++;                     // 序号+1,下一个任务
                     if (Task_Available[current_task_id] == 0) // 当前任务未匹配
+                    /*
+                    && (find_if(current_PT[current_task_id].begin(), current_PT[current_task_id].end(), [i](const std::pair<int, double> &p)
+                                                                         { return p.second == i; }) != current_PT[current_task_id].end())
+
+                    */
                     {
                         // 是否满足所有任务的Deadline限制，如果满足则更新后续影响任务的最大可走距离
-                        if (CurrentTask_Satisfy(current_taskGroup, i, current_task_id, current_Group_workerAD, current_detour_distance, current_Group_worker_subTrajectoryDis, CT_Worker, current_poi, MaxDistanceTask, current_task_NeedTime, nowtime)) // 变量地址传递
+                        if (CurrentTask_Satisfy(current_taskGroup, i, current_task_id, current_Group_workerAD, current_detour_distance, current_Group_worker_subTrajectoryDis, current_CT_Worker, current_poi, MaxDistanceTask, current_task_NeedTime, nowtime)) // 变量地址传递
                         {
                             // cout<<"可插入任务"<<endl;
                             Task_Available[current_task_id] = 1; // 更新任务为已匹配状态1
                             count_NATask++;                      // 已分配任务数+1
-                            CT_Worker[i].push_back(current_task_id);
+                            current_CT_Worker[i].push_back(current_task_id);
 
                             // hy黄阳↓↓↓↓↓↓↓↓
 
@@ -1719,10 +1851,10 @@ void Basic_information::iterator_Match_WorkBatch(vector<CURRENT_WORKERS_GROUP> &
                             // 更新工人的已匹配任务；
                             current_Group_workerAD[i] = current_Group_workerAD[i] - 2 * current_detour_distance[current_task_id][i]; // 计算剩余AD[workerid]
                             // 更新工人的可绕路距离;
-                            UpdateTaskDeadline(i, current_task_id, current_detour_distance, CT_Worker, current_poi, MaxDistanceTask, *current_task_NeedTime); // 更新，由于work增加新的task因此更新，约束条件的状态。
+                            UpdateTaskDeadline(i, current_task_id, current_detour_distance, current_CT_Worker, current_poi, MaxDistanceTask, *current_task_NeedTime); // 更新，由于work增加新的task因此更新，约束条件的状态。
                             //*******更新任务的最大可行驶距离
 
-                            if (CT_Worker[i].size() == Capacity)
+                            if (current_CT_Worker[i].size() == Capacity)
                             // 判断工人容量是否已达标
                             {
                                 count_NAWorker++;        // 不可用+1
@@ -2092,9 +2224,9 @@ void Basic_information::Grouping_Framework_TSDA(vector<TASK> &tasks, vector<WORK
 
         determine_Window_Task_Timeout(current_taskGroup, current_window_endTime);
         // 对分组内任务和工人进行匹配。
-        match_WorkerTask_workerBatch(current_taskGroup, current_Group_worker, current_window_endTime, current_Group_workerAD, current_Group_worker_subTrajectoryDis); // 当前任务组,当前工人组,当前窗口截止时间，当前工人剩余绕行距离
-                                                                                                                                                                      // updata_nextWindow_Worker_Task(current_taskGroup, current_Group_worker, current_window_startTime);
-                                                                                                                                                                      // current_taskGroup.clear();
+        match_WorkerTask_TSDA(current_taskGroup, current_Group_worker, current_window_endTime, current_Group_workerAD, current_Group_worker_subTrajectoryDis); // 当前任务组,当前工人组,当前窗口截止时间，当前工人剩余绕行距离
+                                                                                                                                                               // updata_nextWindow_Worker_Task(current_taskGroup, current_Group_worker, current_window_startTime);
+                                                                                                                                                               // current_taskGroup.clear();
     }
     // print_groupTasks_addEndTime();
 }
@@ -2953,7 +3085,83 @@ void Basic_information::UpdateTaskDeadline_WSDA(bool replace, int replaceWorkid,
 }
 
 /***
- * 4.7
+ * 4.7-1
+ * 根据混合排序得到已经排好序的（任务、工人）数据时间
+ * 逐个初始化每个信息
+ * 并按照时间进行匹配计算
+ *  计算分为任务（或工人）两种形式
+ *
+ */
+
+void Basic_information::time_random_Framework()
+{
+    vector<pair<WORKER, TASK>> hybird_datasets;                 // 合并排序后的 workers 和 tasks
+    sort_hybrid(global_tasks, global_workers, hybird_datasets); // 混合排序
+
+    vector<CURRENT_TASK_GROUP> current_taskGroup;      // 当前时间窗口内的任务列表，已获得
+    vector<CURRENT_WORKERS_GROUP> current_workerGroup; // 当前窗口内工人，已获得
+    vector<CURRENT_WORKER_STATE> current_workerState;  // 存储当前工人的状态
+    vector<CURRENT_TASK_STATE> current_taskState;      // 存储当前任务的状态
+
+    double current_time = 0;
+    int arrive_global_workerID = -1; // 当前已到达全局工人的第几个
+    int arrive_global_taskID = -1;   // 当前已到达全局任务的第几个
+    CURRENT_TASK_GROUP taskg;
+    CURRENT_WORKERS_GROUP workerg;
+    CURRENT_WORKER_STATE workerStateg;
+    CURRENT_TASK_STATE taskStateg;
+    bool sign; //  false当前出现是工人，true是任务
+
+    int nummm = 0;
+    for (auto p : hybird_datasets)
+    {
+
+        if (p.first.startTime != 0) // 对于按时间到来的工人进行数据的初始化
+        {
+            arrive_global_workerID++;
+            workerg.worker = p.first;
+            workerg.Original_Local = arrive_global_workerID;
+            current_workerGroup.push_back(workerg);
+            current_time = p.first.startTime;
+
+            workerStateg.current_alltaskCost = 0;
+            workerStateg.current_worker_subTrajectoryDis = global_Worker_subTrajectoryDis[arrive_global_workerID]; // 当前窗口内工人轨迹点之和
+            workerStateg.workerAD_orig = (global_workers[arrive_global_workerID].endTime - current_time) * speed - global_Sumdis[arrive_global_workerID];
+
+            // workerStateg.current_workerSumdis = Sumdis[current_workerID];
+            current_workerState.push_back(workerStateg);
+
+            sign = false;
+        }
+        else // 对于任务进行初始化获取
+        {
+            arrive_global_taskID++;
+            taskg.task = p.second;
+            taskg.Original_Local = arrive_global_taskID;
+            current_taskGroup.push_back(taskg);
+            current_time = p.second.startTime;
+
+            taskStateg.MaxDistanceTask_orig = (p.second.Deadline - current_time) * speed; // 初始化各任务在满足deadline限制的条件下，每个任务可走的最长距离。
+            // taskStateg.current_taskCost = 0;
+            // taskStateg其他三个参数在后面获得
+
+            // taskStateg.current_task_detour_distance;
+            current_taskState.push_back(taskStateg);
+            sign = true;
+        }
+
+        if (current_taskGroup.size() > 0 && current_workerGroup.size() > 0) // 根据时间更新当前剩余工人和任务
+        {
+
+            erase_Task_worker_Timeout(current_taskGroup, current_workerGroup, current_time, current_workerState, current_taskState); // 移除超时的任务和工人
+            time_random_match(current_taskGroup, current_workerGroup, current_time, current_workerState, current_taskState, sign);   // 当前任务组,当前工人组,当前窗口截止时间，当前工人剩余绕行距离
+            // cout << nummm++ << endl;
+        }
+    }
+}
+
+/***
+ * 4.7-2
  * 根据混合排序得到已经排好序的（任务、工人）数据时间
  * 逐个初始化每个信息
  * 并按照时间进行匹配计算
@@ -3022,15 +3230,9 @@ void Basic_information::whole_Greedy_Framework()
         {
 
             erase_Task_worker_Timeout(current_taskGroup, current_workerGroup, current_time, current_workerState, current_taskState); // 移除超时的任务和工人
+            match_Whole(current_taskGroup, current_workerGroup, current_time, current_workerState, current_taskState, sign);         // 当前任务组,当前工人组,当前窗口截止时间，当前工人剩余绕行距离
+            // cout << nummm++ << endl;
         }
-        else
-        {
-            // cout << nummm++ << "不用处理的" << endl;
-            continue;
-        }
-
-        match_Whole(current_taskGroup, current_workerGroup, current_time, current_workerState, current_taskState, sign); // 当前任务组,当前工人组,当前窗口截止时间，当前工人剩余绕行距离
-        // cout << nummm++ << endl;                                                                                         // cout << nummm++ << endl;
     }
 }
 
@@ -3070,6 +3272,148 @@ double Basic_information::Caculate_mindist_whole(int global_workerid, int curren
  * 若加入任务
  *    计算每个工人和新任务之间的信息，并配对
  */
+void Basic_information::time_random_match(vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, double current_Time, vector<CURRENT_WORKER_STATE> &workStates, vector<CURRENT_TASK_STATE> &taskStates, bool sign)
+{
+
+    int current_Number_Worker = current_workerGroup.size();
+    int current_Number_Task = current_taskGroup.size();
+    vector<vector<int>> current_CT_Worker(current_Number_Worker, vector<int>(current_Number_Task));
+    double current_task_NeedTime = 0;
+
+    if (sign == false)
+    { // 如果加入的是工人
+        int tempTid = 0;
+        int arrive_global_workerID;
+
+        // CURRENT_WORKERS_GROUP *new_wg = &current_workerGroup.back(); // 新工人
+        // CURRENT_WORKER_STATE *new_ws = &workStates.back();          // 新工人状态
+
+        for (auto &cu_ts : taskStates) // 计算任务与当前新工人的关联信息
+        {
+            if (workStates.back().matched_task.size() < Capacity) // 当工人的容量<额定
+            {
+                // if (current_taskGroup[tempTid].task.Minscore <= current_workerGroup[current_Number_Worker - 1].worker.score) // worker分数满足大于MinScore
+                {
+                    /********+任务的Deadline限制*/
+                    //  double dist= taskStates[tempTid].poi[current_Number_Worker - 1];
+                    arrive_global_workerID = current_workerGroup.back().Original_Local;
+
+                    double dist = Caculate_mindist_whole(arrive_global_workerID, tempTid, current_taskGroup, taskStates); // 计算tasklist对应新工人最小的poi点
+                    cu_ts.current_task_detour_distance.push_back(dist);                                                   // 存储当前任务对应工人的最小距离
+                    // cu_ts.workid.push_back(arrive_global_workerID);                                                 // 存储工人的全局ID信息
+
+                    //  double dist= taskStates[currentTaskid].poi[currentWorkerid];                                               // 距离工人最近的点
+                    if (current_workerGroup[current_Number_Worker - 1].worker.range >= dist) // 计算绕路距离距离小于range
+                    {
+
+                        // if (current_taskGroup[tempTid].task.Reward - (2 * dist * c) > 0) // 利润大于0
+                        {
+                            if (CurrentTask_Satisfy_whole(current_taskGroup, current_workerGroup, tempTid, taskStates, workStates, current_Time, current_Number_Worker - 1, &current_task_NeedTime)) // 未修改                                                                                                                              // if(SatisfiedDeadline(workerid, taskid, AD, dist)) //满足deadline约束+其它约束
+                            {
+                                // 添加为新加入的工人任务对
+                                workStates.back().matched_task.push_back(current_taskGroup[tempTid]); // 记录加入工人的基础信息
+                                workStates.back().current_alltaskCost += dist;                        // 记录当前所有绕路花费
+                                workStates.back().detour_poi.push_back(cu_ts.poi.back());             // 记录轨迹中的第j个点是最小的;
+
+                                // workStates.back().matched_current_taskCost.push(dist);
+                                // cout << "cu_ts.MaxDistanceTask_orig:" << cu_ts.MaxDistanceTask_orig << endl;
+
+                                workStates.back().matched_MaxDistanceTask_orig.push_back(cu_ts.MaxDistanceTask_orig); // 初始化剩余最大绕路距离
+                                /**
+                                 * 更新
+                                 */
+                                current_taskGroup[tempTid].sign = false;                                                       // 更新任务为已配对状态
+                                global_CT_Worker[arrive_global_workerID].push_back(current_taskGroup[tempTid].Original_Local); // 更新全局匹配对
+                                cout << "工人，任务(" << arrive_global_workerID << ", " << current_taskGroup[tempTid].Original_Local << ") 匹配成功" << endl;
+                                cout << current_taskGroup[tempTid].task.startTime;
+
+                                cout << "\tWORKER (开始t" << current_workerGroup[current_Number_Worker - 1].worker.startTime
+                                     << ",结束t " << current_workerGroup[current_Number_Worker - 1].worker.endTime
+                                     << ", 分数" << current_workerGroup[current_Number_Worker - 1].worker.score
+                                     << ",范围" << current_workerGroup[current_Number_Worker - 1].worker.range
+                                     << ",剩余绕路" << workStates[current_Number_Worker - 1].workerAD_orig - (current_workerGroup[current_Number_Worker - 1].worker.startTime - current_Time) * speed << ")" << endl;
+
+                                cout << "\tTASK (开始t：" << current_taskGroup[tempTid].task.startTime << ",结束t： " << current_taskGroup[tempTid].task.Deadline
+                                     << ", 分数：" << current_taskGroup[tempTid].task.Minscore << ", 报酬"
+                                     << current_taskGroup[tempTid].task.Reward << ",剩余绕路 " << taskStates[tempTid].MaxDistanceTask_orig << ", 绕路距离："
+                                     << dist << " )" << endl;
+
+                                UpdateTaskDeadline_whole(current_Number_Worker - 1, tempTid, workStates, taskStates, current_task_NeedTime, current_taskGroup, current_workerGroup); // 更新，由于work增加新的task因此更新，约束条件的状态。
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            { // 超过额定就标记为要删除状态
+                current_workerGroup.back().sign = false;
+                break;
+            }
+
+            tempTid++;
+        }
+    }
+    else // 加入的是任务
+    {
+        int tempWid = 0;
+        int arrive_global_workerID;
+
+        // CURRENT_WORKERS_GROUP *new_wg = &current_workerGroup.back(); // 新工人
+        // CURRENT_WORKER_STATE *new_ws = &workStates.back();          // 新工人状态
+
+        for (auto &cu_ws : workStates) // 计算任务与当前新工人的关联信息
+        {
+
+            if (current_taskGroup[current_Number_Task - 1].task.Minscore <= current_workerGroup[tempWid].worker.score) // worker分数满足大于MinScore
+            {
+                /********+任务的Deadline限制*/
+                //  double dist= taskStates[tempTid].poi[current_Number_Worker - 1];
+                arrive_global_workerID = current_workerGroup[tempWid].Original_Local;
+
+                double dist = Caculate_mindist_whole(arrive_global_workerID, current_Number_Task - 1, current_taskGroup, taskStates); // 计算tasklist对应新工人最小的poi点
+                taskStates.back().current_task_detour_distance.push_back(dist);                                                       // 存储当前任务对应工人的最小距离
+                // taskStates.back().workid.push_back(arrive_global_workerID);                                                     // 存储工人的全局ID信息
+
+                //  double dist= taskStates[currentTaskid].poi[currentWorkerid];                                               // 距离工人最近的点
+                if (current_workerGroup[tempWid].worker.range >= dist) // 计算绕路距离距离小于range
+                {
+
+                    if (current_taskGroup[current_Number_Task - 1].task.Reward - (2 * dist * c) > 0) // 利润大于0
+                    {
+                        if (CurrentTask_Satisfy_whole(current_taskGroup, current_workerGroup, current_Number_Task - 1, taskStates, workStates, current_Time, tempWid, &current_task_NeedTime)) // 未修改                                                                                                                              // if(SatisfiedDeadline(workerid, taskid, AD, dist)) //满足deadline约束+其它约束
+                        {
+                            // 添加为新加入的工人
+                            workStates[tempWid].matched_task.push_back(current_taskGroup[current_Number_Task - 1]); // 记录加入工人的基础信息
+                            workStates[tempWid].current_alltaskCost += dist;                                        // 记录当前所有绕路花费
+                            workStates[tempWid].detour_poi.push_back(taskStates.back().poi.back());                 // 记录轨迹中的第j个点是最小的;
+
+                            // workStates.back().matched_current_taskCost.push(dist);
+
+                            workStates[tempWid].matched_MaxDistanceTask_orig.push_back(taskStates.back().MaxDistanceTask_orig - dist); // 初始化初始-自绕
+                            /**
+                             * 更新
+                             */
+                            current_taskGroup[current_Number_Task - 1].sign = false;                                                                            // 更新任务为已配对状态
+                            global_CT_Worker[current_workerGroup[tempWid].Original_Local].push_back(current_taskGroup[current_Number_Task - 1].Original_Local); // 更新全局匹配对
+                            if (cu_ws.matched_task.size() == Capacity)                                                                                          // 当工人的容量<额定
+                            {
+                                current_workerGroup[tempWid].sign = false;
+                            }
+                            // 更新当前工人已匹配任务的最大可走距离
+                            UpdateTaskDeadline_whole(tempWid, current_Number_Task - 1, workStates, taskStates, current_task_NeedTime, current_taskGroup, current_workerGroup); // 更新，由于work增加新的task因此更新，约束条件的状态。
+                            break;
+                        }
+                    }
+                }
+            }
+
+            tempWid++;
+        }
+    }
+
+    // ShowCTMatching(current_CT_Worker, current_Number_Worker); // 输出配对
+}
+
 void Basic_information::match_Whole(vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, double current_Time, vector<CURRENT_WORKER_STATE> &workStates, vector<CURRENT_TASK_STATE> &taskStates, bool sign)
 {
 
@@ -3398,6 +3742,7 @@ void Basic_information::erase_Task_worker_Timeout(std::vector<CURRENT_TASK_GROUP
     // 检查分组内的截止时间是否小于当前时间，如果是则删除该工人
     for (int i = workerList.size() - 1; i >= 0; i--)
     {
+
         if (workerList[i].worker.endTime < nowTime || workerList[i].sign == false)
         {
 
@@ -3412,9 +3757,1336 @@ void Basic_information::erase_Task_worker_Timeout(std::vector<CURRENT_TASK_GROUP
             //   cout << "\t\t\t2.1.2。1" << endl;
             // }
         }
+        else
+        {
+            for (int j = 0; j < current_workerState[i].matched_task.size(); j++)
+            {
+                if (current_workerState[i].matched_task[j].task.Deadline < nowTime)
+                {
+                    workerList.erase(workerList.begin() + i);
+                    current_workerState.erase(current_workerState.begin() + i);
+                    break;
+                }
+            }
+        }
     }
 }
 
+// 4.8 ReverseDA处理方法
+void Basic_information::Grouping_Framework_ReverseDA(vector<TASK> &tasks, vector<WORKER> &workers, double Wmax, int Tmax, vector<double> &Sumdis, vector<vector<double>> &global_Worker_subTrajectoryDis)
+
+{
+    vector<CURRENT_TASK_GROUP> current_taskGroup;              // 当前时间窗口内的任务列表，已获得
+    vector<CURRENT_WORKERS_GROUP> current_Group_worker;        // 当前窗口内工人，已获得
+    vector<double> current_Group_workerSumdis;                 // 当前窗口内工人轨迹的总距离。已获得
+    vector<double> current_Group_workerAD;                     // 当前窗口内工人剩余可用距离，已获得
+    double current_window_endTime = tasks[0].startTime + Wmax; // 当前时间窗口的结束时间，已获得
+    double current_window_startTime = tasks[0].startTime;      // 当前时间窗口的起始时间，已获得
+    int current_workID = global_Current_workID;                // 判断当前窗口的工人从几号开始的，已获得
+
+    vector<vector<double>> current_Group_worker_subTrajectoryDis; // 当前窗口内工人轨迹点之和，已获得
+    // vector<vector<double>> current_detour_distance;               // 当前窗口内最大绕路距离
+
+    int sign = 0;
+    cout << "\n------------------分组开始--------------" << endl;
+    for (int i = 0; i < tasks.size(); i++)
+    {
+
+        TASK task = tasks[i];
+        sign++;
+
+        CURRENT_TASK_GROUP taskg;
+        taskg.task = task;
+        taskg.Original_Local = i;
+
+        // 如果当前分组数量已达到Tmax，则创建新的分组
+        // 如果任务的开始时间大于等于当前窗口的截止时间，则创建新的分组
+        if ((current_taskGroup.size() == Tmax) || (task.startTime >= current_window_endTime))
+        {
+            current_workID = global_Current_workID;
+            current_window_endTime = task.startTime; // 下一窗口的开始时间，也就是上一窗口的结束时间
+            cout << sign << " 1\t当前窗口截止时间：" << current_window_endTime << endl;
+            // 计算当前窗口满足时间约束的work。
+            groupWork_according_TaskGroup(workers, Sumdis, current_Group_worker, current_Group_workerSumdis, current_window_endTime, current_workID, current_Group_workerAD, global_Worker_subTrajectoryDis, current_Group_worker_subTrajectoryDis); // 计算当前窗口满足时间约束的work。
+            determine_Window_Task_Timeout(current_taskGroup, current_window_endTime);
+
+            // 任务工人配对，并计算当工人和任务未匹配时,能进入下一窗口的工人和任务，
+
+            // match_WorkerTask(current_taskGroup, current_Group_worker, current_window_endTime, current_Group_workerAD, current_Group_worker_subTrajectoryDis);        // 当前任务组,当前工人组,当前窗口截止时间，当前工人剩余绕行距离
+            match_WorkerTask_ReverseDA(current_taskGroup, current_Group_worker, current_window_endTime, current_Group_workerAD, current_Group_worker_subTrajectoryDis); // 当前任务组,当前工人组,当前窗口截止时间，当前工人剩余绕行距离
+
+            // 为下一窗口做准备，即最大的截止时间
+            current_window_startTime = current_window_endTime;
+            current_window_endTime += Wmax;
+
+            // updata_nextWindow_Worker_Task(current_taskGroup, current_Group_worker, current_window_endTime); // 将剩余工人加入当前组。并更新他们的开始时间为当前截止时间
+            cout << "\n-----------------------------分组结束\n"
+                 << endl;
+            updata_current_Info(current_taskGroup, current_Group_worker, current_Group_workerAD, current_Group_worker_subTrajectoryDis, current_Group_workerSumdis);
+        }
+
+        // 将剩余任务加入当前分组，并更新他们的开始时间为当前时间。
+        current_taskGroup.push_back(taskg);
+    }
+    // 将最后一个分组加入分组列表
+    if (current_taskGroup.size() > 0)
+    {
+
+        current_workID = global_Current_workID;
+        current_window_startTime = current_taskGroup.back().task.startTime;
+        cout << sign << "   最后一组，下一时间窗口为：" << current_window_startTime << endl;
+        // 计算分组内的工人以及他们剩余绕行距离
+        groupWork_according_TaskGroup(workers, Sumdis, current_Group_worker, current_Group_workerSumdis, current_window_endTime, current_workID, current_Group_workerAD, global_Worker_subTrajectoryDis, current_Group_worker_subTrajectoryDis); // 计算当前窗口满足时间约束的work。
+
+        determine_Window_Task_Timeout(current_taskGroup, current_window_endTime);
+        // 对分组内任务和工人进行匹配。
+        match_WorkerTask_ReverseDA(current_taskGroup, current_Group_worker, current_window_endTime, current_Group_workerAD, current_Group_worker_subTrajectoryDis); // 当前任务组,当前工人组,当前窗口截止时间，当前工人剩余绕行距离
+                                                                                                                                                                    // updata_nextWindow_Worker_Task(current_taskGroup, current_Group_worker, current_window_startTime);
+                                                                                                                                                                    // current_taskGroup.clear();
+    }
+    //   print_groupTasks_addEndTime();
+}
+
+void Basic_information::match_WorkerTask_ReverseDA(vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, double current_window_endTime, vector<double> &current_Group_workerAD, vector<vector<double>> &current_Group_worker_subTrajectoryDis)
+{
+
+    int current_Number_Worker = current_workerGroup.size();
+    int current_Number_Task = current_taskGroup.size();
+    // double current_detour_distance[current_Number_Task][current_Number_Worker];
+    // int poi[current_Number_Task][current_Number_Worker]; // 存储poiid，记录哪个点是最小的
+    vector<double> current_detour_distance[current_Number_Task]; // 存储当前分组内，任务到每个工人的最近绕路距离，并初始化，防止数组越界。
+    vector<int> current_poi[current_Number_Task];                // 存储poiid，记录哪个点到任务距离是最小的
+    vector<vector<pair<int, double>>> current_PT(Number_Task);
+    vector<vector<pair<int, double>>> current_PW(Number_Worker);
+
+    int current_CW_Task[current_Number_Task];                    // 记录number_task个task的当前对象
+    int current_num_of_chased_worker[current_Number_Task] = {0}; // 任务追求过的工人的数量
+    vector<int> current_ActiveTask;                              // 记录当前活动任务集
+    vector<int> current_NextActiveTask(current_ActiveTask);
+    // vector<int> current_CT_Worker[current_Number_Worker];                            // 记录当前worker已分配的任务，已修改
+    vector<vector<int>> current_CT_Worker(current_Number_Worker);
+    double current_MaxDistanceTask[current_Number_Task] = {0.0}; // 任务允许的最大绕路距离，根据任务的开始和截止时间计算初始化，后面会根据work和task位置关系进一步更新，用于剪枝
+    double current_task_NeedTime = 0.0;                          // 记录到任务位置所需时间并返回
+
+    for (int i = 0; i < current_Number_Task; i++)
+    {
+        current_detour_distance[i] = vector<double>(current_Number_Worker, 0);
+        // current_detour_distance[i].push_back(vector<double>(current_Number_Worker, 0));
+        current_poi[i] = vector<int>(current_Number_Worker, 0);
+    }
+
+    Compute_PTPW_Group_workerBatch(current_PT, current_PW, current_detour_distance, current_taskGroup, current_workerGroup, current_poi); // 诗婷增加, 已完全修改
+    for (int i = 0; i < current_taskGroup.size(); i++)
+    {
+        if (current_PT[i].size() != 0) // 偏好列表不为0才是可用任务
+        {
+            current_ActiveTask.push_back(i);
+        }
+        current_CW_Task[i] = -1;
+    }
+    if (current_ActiveTask.empty())
+    {
+        return;
+    }
+    // // 存储detour_distance
+    // double AD[current_Number_Worker]; // hy  AT记录worker的剩余可用时间，AD记录worker的剩余可用偏移距离。
+    // Initialize(AD, Sumdis);   / / hy 初始化剩余绕路距离当前时间-剩余时间，已修改到分组划分的位置
+
+    computeMaxDitanceTask(current_MaxDistanceTask, current_taskGroup, current_window_endTime); // 初始化各任务在满足deadline限制的条件下，每个任务可走的最长距离。
+
+    /**
+     * 迭代匹配
+     * 工人批量时，工人不可用或者任务不可用停止循环匹配
+     * 未匹配或匹配失败的批次工人优先匹配
+     * 偏好列表ORDER
+     */
+    cout << "current_taskGroup.size(): " << current_ActiveTask.size() << current_ActiveTask.empty() << endl;
+    while (!current_ActiveTask.empty())
+    {
+        //  cout << "第" << ++matchingTimes << "轮匹配开始！！！！！" << endl;
+
+        current_NextActiveTask.clear();
+
+        for (int i = 0; i < current_ActiveTask.size(); i++) // 为ActiveTask重新赋值为NextACTIVETASK
+            current_NextActiveTask.push_back(current_ActiveTask[i]);
+
+        int matchingnumber = 0, replacematching = 0;
+        for (int i = 0; i < current_ActiveTask.size(); i++)
+        {
+            int taskid = current_ActiveTask[i];
+            int order = current_num_of_chased_worker[taskid];
+            int worker_to_chase = current_PT[taskid][order].first;
+            //   cout << taskid << "目前已经追求的工人数量:" << order << endl;
+            //  cout << "任务的偏好工人数：" << PT[taskid].size() << endl;
+            current_num_of_chased_worker[taskid] = order + 1; // 无论匹配成功与否，该任务追过的工人数量加1。
+
+            if (IFTaskExist(worker_to_chase, taskid, current_PW) != current_PW[worker_to_chase].end()) // 任务存在PW
+            {
+
+                if (CurrentTask_Satisfy_TSDA(current_taskGroup, worker_to_chase, taskid, current_Group_workerAD, current_detour_distance, current_Group_worker_subTrajectoryDis, current_CT_Worker, current_poi, current_MaxDistanceTask, &current_task_NeedTime, current_window_endTime))
+                // if (AcceptTask(taskid, worker_to_chase, PW)) //修改+Deadline
+                {
+                    // 任务被工人直接接受
+                    current_CW_Task[taskid] = worker_to_chase;
+                    current_CT_Worker[worker_to_chase].push_back(taskid);
+                    // current_workerGroup[worker_to_chase].sign = false; // 当前分组内工人已被使用，不能成为下一分组的元素
+                    // current_taskGroup[taskid].sign = false;
+                    // global_CT_Worker[current_workerGroup[worker_to_chase].Original_Local].push_back(taskid);
+
+                    //   cout << "工人：" << worker_to_chase << "目前已匹配的任务数：" << CT_Worker[worker_to_chase].size() << endl;
+                    current_NextActiveTask.erase(find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid)); // 更新Activetask
+
+                    Update_AD1(worker_to_chase, taskid, current_Group_workerAD, current_detour_distance); // 更新可用偏移距离
+                                                                                                          //       cout << worker_to_chase << "工人的可用时间：" << AT[worker_to_chase] << endl;
+                                                                                                          //      cout << "工人-任务匹配成功！！！" << endl;
+                                                                                                          //      cout << " 配对为:"
+                                                                                                          //           << "(" << taskid << "," << worker_to_chase << ")" << endl;
+                    //*********************************
+                    // 更新任务的最大可行驶距离,以及其它任务的
+                    UpdateTaskDeadline_TSDA(false, 0, worker_to_chase, taskid, current_detour_distance, current_CT_Worker, current_poi, current_MaxDistanceTask, current_task_NeedTime);
+                    matchingnumber++;
+                    //  int taskindex = GetIndex_PW(worker_to_chase, taskid, PW);
+                }
+                else
+                {
+                    //     for (int i = 0; i < After_Task.size(); i++)
+                    //      cout << "aftertask:" << After_Task[i].first << endl;
+                    //      for (int i = 0; i < RPTask.size(); i++)
+                    //      cout << "replacetask:" << RPTask[i] << endl;
+                    //      cout << "endddd!" << endl;
+                    //*************修改寻找替换任务
+                    //  int MinReplaceTask =  Find_ReplaceTask(worker_to_chase, taskid, PW); //找到报酬最小的任务
+                    int MinReplaceTask = FindReplaceTaskNew_TSDA(worker_to_chase, taskid, current_PW, current_Group_workerAD, current_detour_distance, current_Group_worker_subTrajectoryDis, current_CT_Worker, current_poi, current_MaxDistanceTask, &current_task_NeedTime, current_taskGroup, current_window_endTime);
+                    if (MinReplaceTask != -1) // 存在可替换的任务
+                    {
+                        current_CW_Task[taskid] = worker_to_chase;
+                        current_CW_Task[MinReplaceTask] = -1; // 被替换出去的工人的任务变为-1
+                        current_CT_Worker[worker_to_chase].push_back(taskid);
+                        // RemoveReplaceTask(worker_to_chase, taskid, MinReplaceTask);  //从工人已匹配中移除MinReplaceTask
+                        current_CT_Worker[worker_to_chase].erase(find(current_CT_Worker[worker_to_chase].begin(), current_CT_Worker[worker_to_chase].end(), MinReplaceTask));
+                        // AddTask_into_AT(worker_to_chase, taskid, MinReplaceTask);   //将 MinReplaceTask加入AT
+                        if (current_num_of_chased_worker[MinReplaceTask] < current_PT[MinReplaceTask].size()) //****4.29：21：13 Active任务需要还有可求婚的对象
+                            current_NextActiveTask.push_back(MinReplaceTask);
+                        current_NextActiveTask.erase(find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid)); // 将taskid任务移除AT；
+
+                        Update_AD2(worker_to_chase, taskid, MinReplaceTask, current_Group_workerAD, current_detour_distance); // 更新可用偏移距离
+                                                                                                                              //*********************************
+                        // 更新已插入任务的最大可行驶距离,replace任务的最大可行驶距离,以及其它以匹配任务的最大可行驶距离
+                        UpdateTaskDeadline_TSDA(true, MinReplaceTask, worker_to_chase, taskid, current_detour_distance, current_CT_Worker, current_poi, current_MaxDistanceTask, current_task_NeedTime);
+                        //******替换任务的Deadline更新为初始的值
+                        current_MaxDistanceTask[MinReplaceTask] = current_taskGroup[MinReplaceTask].task.Deadline * speed;
+                        //   cout <<"任务"<<MinReplaceTask<<"替换成功!" <<taskid<< endl;
+                        replacematching++;
+                        //  int taskindex = GetIndex_PW(worker_to_chase, taskid, PW);
+                        //   int MinRTindex = GetIndex_PW(worker_to_chase, MinReplaceTask, PW);
+                        //   int workerindex = GetIndex_PT(worker_to_chase, MinReplaceTask, PT);
+                    }
+                    else
+                    {
+                        //      cout << "无可替换任务！！！" << endl; //该任务追过的工人数量加1
+                        //      cout << "llll" << endl;
+                    }
+                }
+            }
+            if (current_num_of_chased_worker[taskid] == current_PT[taskid].size()) // 匹配到偏好列表的最后一个，则从ActivetASK中移除！
+            {
+
+                vector<int>::iterator iter1 = find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid);
+                if (iter1 != current_NextActiveTask.end())
+                {
+                    current_NextActiveTask.erase(find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid));
+                }
+                vector<int>::iterator iter2 = find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid);
+                if (iter2 == current_NextActiveTask.end())
+                {
+                    //    cout << "任务偏好列表已达最后一个，任务已移除！" << endl;
+                    //    cout << endl;
+                }
+            }
+        }
+
+        //   cout << "第" << matchingTimes << "轮匹配结束！！！！！" << endl;
+        // cout << "本轮匹配到配对数量：" << matchingnumber << "\t"
+        //   << "本轮替换的次数:" << replacematching << endl;
+
+        current_ActiveTask.clear();
+        for (int i = 0; i < current_NextActiveTask.size(); i++) // 为ActiveTask重新赋值为NextACTIVETASK
+            current_ActiveTask.push_back(current_NextActiveTask[i]);
+        //   cout << "下一轮匹配的任务数：" << NextActiveTask.size() << endl;
+        //   cout << "end" << endl;
+    }
+
+    // -- --;
+
+    // int current_Number_Worker = current_workerGroup.size();
+    // int current_Number_Task = current_taskGroup.size();
+
+    // double current_detour_distance[current_Number_Task][current_Number_Worker];
+    // int poi[current_Number_Task][current_Number_Worker]; // 存储poiid，记录哪个点是最小的
+    // vector<double> current_detour_distance[current_Number_Task]; // 存储当前分组内，任务到每个工人的最近绕路距离，并初始化，防止数组越界。
+    // vector<int> current_poi[current_Number_Task];                // 存储poiid，记录哪个点到任务距离是最小的
+    // vector<vector<pair<int, double>>> current_PT(Number_Task);
+    // vector<vector<pair<int, double>>> current_PW(Number_Worker);
+
+    int current_num_of_chased_tasks[current_Number_Worker] = {0}; // 工人呢追求过的任务的数量
+
+    vector<int> current_ActiveWorker; // 记录当前活动工人集
+
+    vector<int> current_NextActiveWorker(current_ActiveWorker);
+
+    // double current_MaxDistanceTask[current_Number_Task] = {0.0}; // 任务允许的最大绕路距离，根据任务的开始和截止时间计算初始化，后面会根据work和task位置关系进一步更新，用于剪枝
+    current_task_NeedTime = 0.0; // 记录到任务位置所需时间并返回
+
+    // 初始化ActiveTask,AD
+    for (int i = 0; i < current_workerGroup.size(); i++)
+    {
+        if (current_PW[i].size() != 0)         // 偏好列表不为0才是可用工人//hy完成
+        {                                      //   cout<<i<<"任务YOU偏好列表"<<endl;
+                                               //   cout<<PT[i].size()<<endl;
+            current_ActiveWorker.push_back(i); // hy完成
+        }
+    }
+
+    /**
+     * 迭代匹配
+     * 工人批量时，工人不可用或者任务不可用停止循环匹配
+     * 未匹配或匹配失败的批次工人优先匹配
+     * 偏好列表ORDER
+     */
+    cout << "current_taskGroup.size(): " << current_ActiveWorker.size() << current_ActiveWorker.empty() << endl;
+    int matchingTimes = 0;
+    while (!current_ActiveWorker.empty())
+    {
+        cout << "第" << ++matchingTimes << "轮匹配开始！！！！！" << endl;
+
+        current_NextActiveWorker.clear();
+
+        for (int i = 0; i < current_ActiveWorker.size(); i++) // 为ActiveWorker重新赋值为NextACTIVETASK
+            current_NextActiveWorker.push_back(current_ActiveWorker[i]);
+
+        int matchingnumber = 0, replacematching = 0;
+        for (int i = 0; i < current_ActiveWorker.size(); i++)
+        {
+            int workerid = current_ActiveWorker[i];
+            int order = current_num_of_chased_tasks[workerid];
+
+            int task_to_chase = current_PW[workerid][order].first;
+            // cout << workerid << "目前已经追求的任务数量:" << order << endl;
+            // cout << "任务的偏好工人数：" << PT[taskid].size() << endl;
+            current_num_of_chased_tasks[workerid] = order + 1; // 无论匹配成功与否，该工人追过的任务数量加1。
+
+            // for (auto m : current_taskGroup)
+            // {
+            //   cout << m.Original_Local << "  " << current_Number_Task << endl;
+            // }
+            // for (auto m : current_workerGroup)
+            // {
+            //   cout << "当前工人：" << m.Original_Local << endl;
+            // }
+            cout << "测试到这里111" << endl;
+
+            if (IFWorkerExist(workerid, task_to_chase, current_PT) != current_PT[task_to_chase].end()) // 工人是否在任务的偏好列表里
+            {
+                cout << "测试到这里22" << endl;
+                // cout << "工人：" << workerid << "目前已匹配的任务数：" << current_CT_Worker[workerid].size() << endl;
+                if (CurrentTask_Satisfy_TSDA(current_taskGroup, workerid, task_to_chase, current_Group_workerAD, current_detour_distance, current_Group_worker_subTrajectoryDis, current_CT_Worker, current_poi, current_MaxDistanceTask, &current_task_NeedTime, current_window_endTime))
+                // if (AcceptTask(taskid, worker_to_chase, PW)) //修改+Deadline
+                {
+                    cout << "测试到这里33" << endl;
+                    if (current_CW_Task[task_to_chase] == -1) // 任务还未匹配
+                    {
+                        cout << "测试到这里44" << endl;
+                        // 任务被工人直接接受
+                        current_CW_Task[task_to_chase] = workerid;
+                        current_CT_Worker[workerid].push_back(task_to_chase);
+                        // current_workerGroup[worker_to_chase].sign = false; // 当前分组内工人已被使用，不能成为下一分组的元素
+                        // current_taskGroup[taskid].sign = false;
+                        // global_CT_Worker[current_workerGroup[worker_to_chase].Original_Local].push_back(taskid);
+
+                        cout << "工人：" << workerid << "目前已匹配的任务数：" << current_CT_Worker[workerid].size() << endl;
+                        //---- current_NextActiveWorker.erase(find(current_NextActiveWorker.begin(), current_NextActiveWorker.end(), workerid)); // 更新Activetask
+
+                        Update_AD1(workerid, task_to_chase, current_Group_workerAD, current_detour_distance); // 更新可用偏移距离
+                                                                                                              //       cout << worker_to_chase << "工人的可用时间：" << AT[worker_to_chase] << endl;
+                                                                                                              //      cout << "工人-任务匹配成功！！！" << endl;
+                                                                                                              //      cout << " 配对为:"
+                                                                                                              //           << "(" << taskid << "," << worker_to_chase << ")" << endl;
+                        //*********************************
+                        // 更新任务的最大可行驶距离,以及其它任务的
+                        UpdateTaskDeadline_WSDA(false, 0, workerid, task_to_chase, current_detour_distance, current_CT_Worker, current_poi, current_MaxDistanceTask, current_task_NeedTime);
+                        matchingnumber++;
+                        //  int taskindex = GetIndex_PW(worker_to_chase, taskid, PW);//hy 在这里注销了
+                    }
+                    else // 任务已经暂时匹配给其它工人了
+                    {
+                        cout << "测试到这里55" << endl;
+                        // 判断任务已匹配的工人和当前工人哪个在偏好列表里排在更前面
+                        int oldworkerid = current_CW_Task[task_to_chase]; // 原工人id
+                        if (GetIndex_PT(workerid, task_to_chase, current_PT) < GetIndex_PT(oldworkerid, task_to_chase, current_PT))
+                        {
+                            cout << "测试到这里66" << endl;
+
+                            current_CW_Task[task_to_chase] = workerid;
+                            current_CT_Worker[workerid].push_back(task_to_chase); // 当前工人加入新任务
+
+                            Update_AD1(workerid, task_to_chase, current_Group_workerAD, current_detour_distance); // 更新工人可用偏移距离
+                            cout << "size:" << current_CT_Worker[oldworkerid].size() << endl;
+                            for (auto m : current_CT_Worker[oldworkerid])
+                            {
+                                cout << m << "  " << task_to_chase << endl;
+                            }
+                            // cout << task_to_chase << "任务已经加入！" << endl;
+                            // cout << task_to_chase << "任务需要从旧工人中移除" << endl;
+                            // cout << "旧工人的当前任务如下:" << endl;
+                            // for (int j = 0; j < current_CT_Worker[oldworkerid].size(); j++)
+                            //   cout << current_CT_Worker[oldworkerid][j] << endl;
+
+                            current_CT_Worker[oldworkerid].erase(find(current_CT_Worker[oldworkerid].begin(), current_CT_Worker[oldworkerid].end(), task_to_chase)); // erase出错啦！！！ 2021:5.12
+                            cout << "测试到这里77" << endl;
+                            cout << "删除任务后旧工人的当前任务如下:" << endl;
+                            for (int j = 0; j < current_CT_Worker[oldworkerid].size(); j++)
+                                cout << current_CT_Worker[oldworkerid][j] << endl;
+
+                            Update_AD2_WSDA(oldworkerid, task_to_chase, current_Group_workerAD, current_detour_distance); // //更新旧工人的可用绕路
+
+                            // 更新可用时间和可用偏移距离
+                            //         cout << "替换成功！" << endl;
+
+                            // 更新已插入任务的最大可行驶距离,replace任务的最大可行驶距离,以及其它以匹配任务的最大可行驶距离
+                            current_MaxDistanceTask[task_to_chase] = (current_taskGroup[task_to_chase].task.Deadline - current_window_endTime) * speed;
+                            UpdateTaskDeadline_WSDA(true, oldworkerid, workerid, task_to_chase, current_detour_distance, current_CT_Worker, current_poi, current_MaxDistanceTask, current_task_NeedTime);
+
+                            replacematching++;
+                        }
+                        else
+                        {
+                            //       cout << "无可替换任务！！！" << endl; //该任务追过的工人数量加1
+                            //      cout << "llll" << endl;
+                        }
+                    }
+                }
+            }
+            if (current_num_of_chased_tasks[workerid] >= current_PW[workerid].size()) // 匹配到偏好列表的最后一个，则从Activetworker中移除！
+            {
+                vector<int>::iterator iter1 = find(current_NextActiveWorker.begin(), current_NextActiveWorker.end(), workerid);
+                if (iter1 != current_NextActiveWorker.end())
+                {
+                    current_NextActiveWorker.erase(find(current_NextActiveWorker.begin(), current_NextActiveWorker.end(), workerid));
+                }
+
+                /*     vector<int>::iterator iter2 = find(NextActiveWorker.begin(), NextActiveWorker.end(), task_to_chase);
+                    if (iter2 == NextActiveWorker.end())
+                    {
+                     cout << "任务偏好列表已达最后一个，任务已移除！" << endl;
+                     cout << endl;
+                    }
+                    */
+            }
+        }
+
+        current_ActiveWorker.clear();
+        for (int i = 0; i < current_NextActiveWorker.size(); i++) // 为ActiveWorker重新赋值为NextACTIVETASK
+            current_ActiveWorker.push_back(current_NextActiveWorker[i]);
+        //     cout << "下一轮匹配的工人数：" << NextActiveWorker.size() << endl;
+        //      cout << "end" << endl;
+    }
+
+    //   cout << "第" << matchingTimes << "轮匹配结束！！！！！" << endl;
+    // cout << "本轮匹配到配对数量：" << matchingnumber << "\t"
+    //   << "本轮替换的次数:" << replacematching << endl;
+
+    for (int i = 0; i < current_CT_Worker.size(); i++) // 这里多余 增加时长
+    {
+        for (auto m : current_CT_Worker[i])
+        {
+            current_taskGroup[m].sign = false;
+            global_CT_Worker[current_workerGroup[i].Original_Local].push_back(current_taskGroup[m].Original_Local);
+        }
+        current_workerGroup[i].sign = false;
+    }
+
+    ShowCTMatching(current_CT_Worker, current_Number_Worker); // 输出配对
+
+    // for (int i = 0; i < current_CT_Worker.size(); i++)
+    // {
+    //     for (auto m : current_CT_Worker[i])
+    //     {
+    //         current_taskGroup[m].sign = false;
+    //         global_CT_Worker[current_workerGroup[i].Original_Local].push_back(current_taskGroup[m].Original_Local);
+    //     }
+    //     current_workerGroup[i].sign = false;
+    // }
+
+    // ShowCTMatching(current_CT_Worker, current_Number_Worker); // 输出配对
+}
+
+// 4.9
+void Basic_information::Grouping_Framework_AlternateDA(vector<TASK> &tasks, vector<WORKER> &workers, double Wmax, int Tmax, vector<double> &Sumdis, vector<vector<double>> &global_Worker_subTrajectoryDis)
+
+{
+    vector<CURRENT_TASK_GROUP> current_taskGroup;              // 当前时间窗口内的任务列表，已获得
+    vector<CURRENT_WORKERS_GROUP> current_Group_worker;        // 当前窗口内工人，已获得
+    vector<double> current_Group_workerSumdis;                 // 当前窗口内工人轨迹的总距离。已获得
+    vector<double> current_Group_workerAD;                     // 当前窗口内工人剩余可用距离，已获得
+    double current_window_endTime = tasks[0].startTime + Wmax; // 当前时间窗口的结束时间，已获得
+    double current_window_startTime = tasks[0].startTime;      // 当前时间窗口的起始时间，已获得
+    int current_workID = global_Current_workID;                // 判断当前窗口的工人从几号开始的，已获得
+
+    vector<vector<double>> current_Group_worker_subTrajectoryDis; // 当前窗口内工人轨迹点之和，已获得
+    // vector<vector<double>> current_detour_distance;               // 当前窗口内最大绕路距离
+
+    int sign = 0;
+    cout << "\n------------------分组开始--------------" << endl;
+    for (int i = 0; i < tasks.size(); i++)
+    {
+
+        TASK task = tasks[i];
+        sign++;
+
+        CURRENT_TASK_GROUP taskg;
+        taskg.task = task;
+        taskg.Original_Local = i;
+
+        // 如果当前分组数量已达到Tmax，则创建新的分组
+        // 如果任务的开始时间大于等于当前窗口的截止时间，则创建新的分组
+        if ((current_taskGroup.size() == Tmax) || (task.startTime >= current_window_endTime))
+        {
+            current_workID = global_Current_workID;
+            current_window_endTime = task.startTime; // 下一窗口的开始时间，也就是上一窗口的结束时间
+            cout << sign << " 1\t当前窗口截止时间：" << current_window_endTime << endl;
+            // 计算当前窗口满足时间约束的work。
+            groupWork_according_TaskGroup(workers, Sumdis, current_Group_worker, current_Group_workerSumdis, current_window_endTime, current_workID, current_Group_workerAD, global_Worker_subTrajectoryDis, current_Group_worker_subTrajectoryDis); // 计算当前窗口满足时间约束的work。
+            determine_Window_Task_Timeout(current_taskGroup, current_window_endTime);
+
+            // 任务工人配对，并计算当工人和任务未匹配时,能进入下一窗口的工人和任务，
+
+            // match_WorkerTask(current_taskGroup, current_Group_worker, current_window_endTime, current_Group_workerAD, current_Group_worker_subTrajectoryDis);        // 当前任务组,当前工人组,当前窗口截止时间，当前工人剩余绕行距离
+            match_WorkerTask_AlternateDA(current_taskGroup, current_Group_worker, current_window_endTime, current_Group_workerAD, current_Group_worker_subTrajectoryDis); // 当前任务组,当前工人组,当前窗口截止时间，当前工人剩余绕行距离
+
+            // 为下一窗口做准备，即最大的截止时间
+            current_window_startTime = current_window_endTime;
+            current_window_endTime += Wmax;
+
+            // updata_nextWindow_Worker_Task(current_taskGroup, current_Group_worker, current_window_endTime); // 将剩余工人加入当前组。并更新他们的开始时间为当前截止时间
+            cout << "\n-----------------------------分组结束\n"
+                 << endl;
+            updata_current_Info(current_taskGroup, current_Group_worker, current_Group_workerAD, current_Group_worker_subTrajectoryDis, current_Group_workerSumdis);
+        }
+
+        // 将剩余任务加入当前分组，并更新他们的开始时间为当前时间。
+        current_taskGroup.push_back(taskg);
+    }
+    // 将最后一个分组加入分组列表
+    if (current_taskGroup.size() > 0)
+    {
+
+        current_workID = global_Current_workID;
+        current_window_startTime = current_taskGroup.back().task.startTime;
+        cout << sign << "   最后一组，下一时间窗口为：" << current_window_startTime << endl;
+        // 计算分组内的工人以及他们剩余绕行距离
+        groupWork_according_TaskGroup(workers, Sumdis, current_Group_worker, current_Group_workerSumdis, current_window_endTime, current_workID, current_Group_workerAD, global_Worker_subTrajectoryDis, current_Group_worker_subTrajectoryDis); // 计算当前窗口满足时间约束的work。
+
+        determine_Window_Task_Timeout(current_taskGroup, current_window_endTime);
+        // 对分组内任务和工人进行匹配。
+        match_WorkerTask_AlternateDA(current_taskGroup, current_Group_worker, current_window_endTime, current_Group_workerAD, current_Group_worker_subTrajectoryDis); // 当前任务组,当前工人组,当前窗口截止时间，当前工人剩余绕行距离
+                                                                                                                                                                      // updata_nextWindow_Worker_Task(current_taskGroup, current_Group_worker, current_window_startTime);
+                                                                                                                                                                      // current_taskGroup.clear();
+    }
+    //   print_groupTasks_addEndTime();
+}
+
+// void Basic_information::match_WorkerTask_AlternateDA(vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, double current_window_endTime, vector<double> &current_Group_workerAD, vector<vector<double>> &current_Group_worker_subTrajectoryDis)
+// {
+
+//     int current_Number_Worker = current_workerGroup.size();
+//     int current_Number_Task = current_taskGroup.size();
+//     // double current_detour_distance[current_Number_Task][current_Number_Worker];
+//     // int poi[current_Number_Task][current_Number_Worker]; // 存储poiid，记录哪个点是最小的
+//     vector<double> current_detour_distance[current_Number_Task]; // 存储当前分组内，任务到每个工人的最近绕路距离，并初始化，防止数组越界。
+//     vector<int> current_poi[current_Number_Task];                // 存储poiid，记录哪个点到任务距离是最小的
+//     vector<vector<pair<int, double>>> current_PT(Number_Task);
+//     vector<vector<pair<int, double>>> current_PW(Number_Worker);
+
+//     int current_CW_Task[current_Number_Task];                    // 记录number_task个task的当前对象
+//     int current_num_of_chased_worker[current_Number_Task] = {0}; // 任务追求过的工人的数量
+//     vector<int> current_ActiveTask;                              // 记录当前活动任务集
+//     vector<int> current_NextActiveTask(current_ActiveTask);
+//     // vector<int> current_CT_Worker[current_Number_Worker];                            // 记录当前worker已分配的任务，已修改
+//     vector<vector<int>> current_CT_Worker(current_Number_Worker);
+//     double current_MaxDistanceTask[current_Number_Task] = {0.0}; // 任务允许的最大绕路距离，根据任务的开始和截止时间计算初始化，后面会根据work和task位置关系进一步更新，用于剪枝
+//     double current_task_NeedTime = 0.0;                          // 记录到任务位置所需时间并返回
+
+//     for (int i = 0; i < current_Number_Task; i++)
+//     {
+//         current_detour_distance[i] = vector<double>(current_Number_Worker, 0);
+//         // current_detour_distance[i].push_back(vector<double>(current_Number_Worker, 0));
+//         current_poi[i] = vector<int>(current_Number_Worker, 0);
+//     }
+
+//     Compute_PTPW_Group_workerBatch(current_PT, current_PW, current_detour_distance, current_taskGroup, current_workerGroup, current_poi); // 诗婷增加, 已完全修改
+//     /**
+//      * 任务hy
+//      */
+//     for (int i = 0; i < current_taskGroup.size(); i++)
+//     {
+//         if (current_PT[i].size() != 0) // 偏好列表不为0才是可用任务
+//         {
+//             current_ActiveTask.push_back(i);
+//         }
+//         current_CW_Task[i] = -1;
+//     }
+//     if (current_ActiveTask.empty())
+//     {
+//         return;
+//     }
+
+//     /**
+//      * 工人hy
+//      */
+
+//     int current_num_of_chased_tasks[current_Number_Worker] = {0}; // 工人呢追求过的任务的数量
+
+//     vector<int> current_ActiveWorker; // 记录当前活动工人集
+
+//     vector<int> current_NextActiveWorker(current_ActiveWorker);
+
+//     // double current_MaxDistanceTask[current_Number_Task] = {0.0}; // 任务允许的最大绕路距离，根据任务的开始和截止时间计算初始化，后面会根据work和task位置关系进一步更新，用于剪枝
+//     current_task_NeedTime = 0.0; // 记录到任务位置所需时间并返回
+
+//     // 初始化ActiveTask,AD
+//     for (int i = 0; i < current_workerGroup.size(); i++)
+//     {
+//         if (current_PW[i].size() != 0)         // 偏好列表不为0才是可用工人//hy完成
+//         {                                      //   cout<<i<<"任务YOU偏好列表"<<endl;
+//                                                //   cout<<PT[i].size()<<endl;
+//             current_ActiveWorker.push_back(i); // hy完成
+//         }
+//     }
+//     // // 存储detour_distance
+//     // double AD[current_Number_Worker]; // hy  AT记录worker的剩余可用时间，AD记录worker的剩余可用偏移距离。
+//     // Initialize(AD, Sumdis);   / / hy 初始化剩余绕路距离当前时间-剩余时间，已修改到分组划分的位置
+
+//     computeMaxDitanceTask(current_MaxDistanceTask, current_taskGroup, current_window_endTime); // 初始化各任务在满足deadline限制的条件下，每个任务可走的最长距离。
+
+//     /**
+//      * 迭代匹配
+//      * 工人批量时，工人不可用或者任务不可用停止循环匹配
+//      * 未匹配或匹配失败的批次工人优先匹配
+//      * 偏好列表ORDER
+//      */
+//     cout << "current_taskGroup.size(): " << current_ActiveTask.size() << current_ActiveTask.empty() << endl;
+//     int flagState = 0;
+//     /***
+//      * 0:两个都没完成
+//      * 1:任务完成
+//      * 2:工人完成
+//      * 3:两个皆完成
+//      */
+//     int matchingTimes = 0;
+//     while (flagState < 3)
+//     {
+//         cout << "第" << ++matchingTimes << "轮匹配开始！！！！！" << endl;
+
+//         while (!current_ActiveTask.empty())
+//         {
+
+//             current_NextActiveTask.clear();
+
+//             for (int i = 0; i < current_ActiveTask.size(); i++) // 为ActiveTask重新赋值为NextACTIVETASK
+//                 current_NextActiveTask.push_back(current_ActiveTask[i]);
+
+//             int matchingnumber = 0, replacematching = 0;
+//             for (int i = 0; i < current_ActiveTask.size(); i++)
+//             {
+
+//                 int taskid = current_ActiveTask[i];
+//                 int order = current_num_of_chased_worker[taskid];
+//                 int worker_to_chase = current_PT[taskid][order].first;
+//                 //   cout << taskid << "目前已经追求的工人数量:" << order << endl;
+//                 //  cout << "任务的偏好工人数：" << PT[taskid].size() << endl;
+//                 current_num_of_chased_worker[taskid] = order + 1; // 无论匹配成功与否，该任务追过的工人数量加1。
+
+//                 if (IFTaskExist(worker_to_chase, taskid, current_PW) != current_PW[worker_to_chase].end()) // 任务存在PW
+//                 {
+
+//                     if (CurrentTask_Satisfy_TSDA(current_taskGroup, worker_to_chase, taskid, current_Group_workerAD, current_detour_distance, current_Group_worker_subTrajectoryDis, current_CT_Worker, current_poi, current_MaxDistanceTask, &current_task_NeedTime, current_window_endTime))
+//                     // if (AcceptTask(taskid, worker_to_chase, PW)) //修改+Deadline
+//                     {
+//                         // 任务被工人直接接受
+//                         current_CW_Task[taskid] = worker_to_chase;
+//                         current_CT_Worker[worker_to_chase].push_back(taskid);
+//                         // current_workerGroup[worker_to_chase].sign = false; // 当前分组内工人已被使用，不能成为下一分组的元素
+//                         // current_taskGroup[taskid].sign = false;
+//                         // global_CT_Worker[current_workerGroup[worker_to_chase].Original_Local].push_back(taskid);
+
+//                         //   cout << "工人：" << worker_to_chase << "目前已匹配的任务数：" << CT_Worker[worker_to_chase].size() << endl;
+//                         current_NextActiveTask.erase(find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid)); // 更新Activetask
+
+//                         Update_AD1(worker_to_chase, taskid, current_Group_workerAD, current_detour_distance); // 更新可用偏移距离
+//                                                                                                               //       cout << worker_to_chase << "工人的可用时间：" << AT[worker_to_chase] << endl;
+//                                                                                                               //      cout << "工人-任务匹配成功！！！" << endl;
+//                                                                                                               //      cout << " 配对为:"
+//                                                                                                               //           << "(" << taskid << "," << worker_to_chase << ")" << endl;
+//                         //*********************************
+//                         // 更新任务的最大可行驶距离,以及其它任务的
+//                         UpdateTaskDeadline_TSDA(false, 0, worker_to_chase, taskid, current_detour_distance, current_CT_Worker, current_poi, current_MaxDistanceTask, current_task_NeedTime);
+//                         matchingnumber++;
+//                         //  int taskindex = GetIndex_PW(worker_to_chase, taskid, PW);
+//                     }
+//                     else
+//                     {
+//                         //     for (int i = 0; i < After_Task.size(); i++)
+//                         //      cout << "aftertask:" << After_Task[i].first << endl;
+//                         //      for (int i = 0; i < RPTask.size(); i++)
+//                         //      cout << "replacetask:" << RPTask[i] << endl;
+//                         //      cout << "endddd!" << endl;
+//                         //*************修改寻找替换任务
+//                         //  int MinReplaceTask =  Find_ReplaceTask(worker_to_chase, taskid, PW); //找到报酬最小的任务
+//                         int MinReplaceTask = FindReplaceTaskNew_TSDA(worker_to_chase, taskid, current_PW, current_Group_workerAD, current_detour_distance, current_Group_worker_subTrajectoryDis, current_CT_Worker, current_poi, current_MaxDistanceTask, &current_task_NeedTime, current_taskGroup, current_window_endTime);
+//                         if (MinReplaceTask != -1) // 存在可替换的任务
+//                         {
+//                             current_CW_Task[taskid] = worker_to_chase;
+//                             current_CW_Task[MinReplaceTask] = -1; // 被替换出去的工人的任务变为-1
+//                             current_CT_Worker[worker_to_chase].push_back(taskid);
+//                             // RemoveReplaceTask(worker_to_chase, taskid, MinReplaceTask);  //从工人已匹配中移除MinReplaceTask
+//                             current_CT_Worker[worker_to_chase].erase(find(current_CT_Worker[worker_to_chase].begin(), current_CT_Worker[worker_to_chase].end(), MinReplaceTask));
+//                             // AddTask_into_AT(worker_to_chase, taskid, MinReplaceTask);   //将 MinReplaceTask加入AT
+//                             if (current_num_of_chased_worker[MinReplaceTask] < current_PT[MinReplaceTask].size()) //****4.29：21：13 Active任务需要还有可求婚的对象
+//                                 current_NextActiveTask.push_back(MinReplaceTask);
+//                             current_NextActiveTask.erase(find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid)); // 将taskid任务移除AT；
+
+//                             Update_AD2(worker_to_chase, taskid, MinReplaceTask, current_Group_workerAD, current_detour_distance); // 更新可用偏移距离
+//                                                                                                                                   //*********************************
+//                             // 更新已插入任务的最大可行驶距离,replace任务的最大可行驶距离,以及其它以匹配任务的最大可行驶距离
+//                             UpdateTaskDeadline_TSDA(true, MinReplaceTask, worker_to_chase, taskid, current_detour_distance, current_CT_Worker, current_poi, current_MaxDistanceTask, current_task_NeedTime);
+//                             //******替换任务的Deadline更新为初始的值
+//                             current_MaxDistanceTask[MinReplaceTask] = current_taskGroup[MinReplaceTask].task.Deadline * speed;
+//                             //   cout <<"任务"<<MinReplaceTask<<"替换成功!" <<taskid<< endl;
+//                             replacematching++;
+//                             //  int taskindex = GetIndex_PW(worker_to_chase, taskid, PW);
+//                             //   int MinRTindex = GetIndex_PW(worker_to_chase, MinReplaceTask, PW);
+//                             //   int workerindex = GetIndex_PT(worker_to_chase, MinReplaceTask, PT);
+//                         }
+//                         else
+//                         {
+//                             //      cout << "无可替换任务！！！" << endl; //该任务追过的工人数量加1
+//                             //      cout << "llll" << endl;
+//                         }
+//                     }
+//                 }
+//                 if (current_num_of_chased_worker[taskid] == current_PT[taskid].size()) // 匹配到偏好列表的最后一个，则从ActivetASK中移除！
+//                 {
+
+//                     vector<int>::iterator iter1 = find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid);
+//                     if (iter1 != current_NextActiveTask.end())
+//                     {
+//                         current_NextActiveTask.erase(find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid));
+//                     }
+//                     vector<int>::iterator iter2 = find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid);
+//                     if (iter2 == current_NextActiveTask.end())
+//                     {
+//                         //    cout << "任务偏好列表已达最后一个，任务已移除！" << endl;
+//                         //    cout << endl;
+//                     }
+//                 }
+//             }
+
+//             //   cout << "第" << matchingTimes << "轮匹配结束！！！！！" << endl;
+//             // cout << "本轮匹配到配对数量：" << matchingnumber << "\t"
+//             //   << "本轮替换的次数:" << replacematching << endl;
+
+//             current_ActiveTask.clear();
+//             for (int i = 0; i < current_NextActiveTask.size(); i++) // 为ActiveTask重新赋值为NextACTIVETASK
+//                 current_ActiveTask.push_back(current_NextActiveTask[i]);
+//             //   cout << "下一轮匹配的任务数：" << NextActiveTask.size() << endl;
+//             //   cout << "end" << endl;
+//             break;
+//         }
+
+//         /**
+//          * 迭代匹配
+//          * 工人批量时，工人不可用或者任务不可用停止循环匹配
+//          * 未匹配或匹配失败的批次工人优先匹配
+//          * 偏好列表ORDER
+//          */
+//         cout << "current_taskGroup.size(): " << current_ActiveWorker.size() << current_ActiveWorker.empty() << endl;
+
+//         while (!current_ActiveWorker.empty())
+//         {
+//             cout << "第" << ++matchingTimes << "轮匹配开始！！！！！" << endl;
+
+//             current_NextActiveWorker.clear();
+
+//             for (int i = 0; i < current_ActiveWorker.size(); i++) // 为ActiveWorker重新赋值为NextACTIVETASK
+//                 current_NextActiveWorker.push_back(current_ActiveWorker[i]);
+
+//             int matchingnumber = 0, replacematching = 0;
+//             for (int i = 0; i < current_ActiveWorker.size(); i++)
+//             {
+//                 int workerid = current_ActiveWorker[i];
+//                 int order = current_num_of_chased_tasks[workerid];
+
+//                 int task_to_chase = current_PW[workerid][order].first;
+//                 // cout << workerid << "目前已经追求的任务数量:" << order << endl;
+//                 // cout << "任务的偏好工人数：" << PT[taskid].size() << endl;
+//                 current_num_of_chased_tasks[workerid] = order + 1; // 无论匹配成功与否，该工人追过的任务数量加1。
+
+//                 // for (auto m : current_taskGroup)
+//                 // {
+//                 //   cout << m.Original_Local << "  " << current_Number_Task << endl;
+//                 // }
+//                 // for (auto m : current_workerGroup)
+//                 // {
+//                 //   cout << "当前工人：" << m.Original_Local << endl;
+//                 // }
+//                 cout << "测试到这里111" << endl;
+
+//                 if (IFWorkerExist(workerid, task_to_chase, current_PT) != current_PT[task_to_chase].end()) // 工人是否在任务的偏好列表里
+//                 {
+//                     cout << "测试到这里22" << endl;
+//                     // cout << "工人：" << workerid << "目前已匹配的任务数：" << current_CT_Worker[workerid].size() << endl;
+//                     if (CurrentTask_Satisfy_TSDA(current_taskGroup, workerid, task_to_chase, current_Group_workerAD, current_detour_distance, current_Group_worker_subTrajectoryDis, current_CT_Worker, current_poi, current_MaxDistanceTask, &current_task_NeedTime, current_window_endTime))
+//                     // if (AcceptTask(taskid, worker_to_chase, PW)) //修改+Deadline
+//                     {
+//                         cout << "测试到这里33" << endl;
+//                         if (current_CW_Task[task_to_chase] == -1) // 任务还未匹配
+//                         {
+//                             cout << "测试到这里44" << endl;
+//                             // 任务被工人直接接受
+//                             current_CW_Task[task_to_chase] = workerid;
+//                             current_CT_Worker[workerid].push_back(task_to_chase);
+//                             // current_workerGroup[worker_to_chase].sign = false; // 当前分组内工人已被使用，不能成为下一分组的元素
+//                             // current_taskGroup[taskid].sign = false;
+//                             // global_CT_Worker[current_workerGroup[worker_to_chase].Original_Local].push_back(taskid);
+
+//                             cout << "工人：" << workerid << "目前已匹配的任务数：" << current_CT_Worker[workerid].size() << endl;
+//                             //---- current_NextActiveWorker.erase(find(current_NextActiveWorker.begin(), current_NextActiveWorker.end(), workerid)); // 更新Activetask
+
+//                             Update_AD1(workerid, task_to_chase, current_Group_workerAD, current_detour_distance); // 更新可用偏移距离
+//                                                                                                                   //       cout << worker_to_chase << "工人的可用时间：" << AT[worker_to_chase] << endl;
+//                                                                                                                   //      cout << "工人-任务匹配成功！！！" << endl;
+//                                                                                                                   //      cout << " 配对为:"
+//                                                                                                                   //           << "(" << taskid << "," << worker_to_chase << ")" << endl;
+//                             //*********************************
+//                             // 更新任务的最大可行驶距离,以及其它任务的
+//                             UpdateTaskDeadline_WSDA(false, 0, workerid, task_to_chase, current_detour_distance, current_CT_Worker, current_poi, current_MaxDistanceTask, current_task_NeedTime);
+//                             matchingnumber++;
+//                             //  int taskindex = GetIndex_PW(worker_to_chase, taskid, PW);//hy 在这里注销了
+//                         }
+//                         else // 任务已经暂时匹配给其它工人了
+//                         {
+//                             cout << "测试到这里55" << endl;
+//                             // 判断任务已匹配的工人和当前工人哪个在偏好列表里排在更前面
+//                             int oldworkerid = current_CW_Task[task_to_chase]; // 原工人id
+//                             if (GetIndex_PT(workerid, task_to_chase, current_PT) < GetIndex_PT(oldworkerid, task_to_chase, current_PT))
+//                             {
+//                                 cout << "测试到这里66" << endl;
+
+//                                 current_CW_Task[task_to_chase] = workerid;
+//                                 current_CT_Worker[workerid].push_back(task_to_chase); // 当前工人加入新任务
+
+//                                 Update_AD1(workerid, task_to_chase, current_Group_workerAD, current_detour_distance); // 更新工人可用偏移距离
+//                                 cout << "size:" << current_CT_Worker[oldworkerid].size() << endl;
+//                                 for (auto m : current_CT_Worker[oldworkerid])
+//                                 {
+//                                     cout << m << "  " << task_to_chase << endl;
+//                                 }
+//                                 // cout << task_to_chase << "任务已经加入！" << endl;
+//                                 // cout << task_to_chase << "任务需要从旧工人中移除" << endl;
+//                                 // cout << "旧工人的当前任务如下:" << endl;
+//                                 // for (int j = 0; j < current_CT_Worker[oldworkerid].size(); j++)
+//                                 //   cout << current_CT_Worker[oldworkerid][j] << endl;
+
+//                                 current_CT_Worker[oldworkerid].erase(find(current_CT_Worker[oldworkerid].begin(), current_CT_Worker[oldworkerid].end(), task_to_chase)); // erase出错啦！！！ 2021:5.12
+//                                 cout << "测试到这里77" << endl;
+//                                 cout << "删除任务后旧工人的当前任务如下:" << endl;
+//                                 for (int j = 0; j < current_CT_Worker[oldworkerid].size(); j++)
+//                                     cout << current_CT_Worker[oldworkerid][j] << endl;
+
+//                                 Update_AD2_WSDA(oldworkerid, task_to_chase, current_Group_workerAD, current_detour_distance); // //更新旧工人的可用绕路
+
+//                                 // 更新可用时间和可用偏移距离
+//                                 //         cout << "替换成功！" << endl;
+
+//                                 // 更新已插入任务的最大可行驶距离,replace任务的最大可行驶距离,以及其它以匹配任务的最大可行驶距离
+//                                 current_MaxDistanceTask[task_to_chase] = (current_taskGroup[task_to_chase].task.Deadline - current_window_endTime) * speed;
+//                                 UpdateTaskDeadline_WSDA(true, oldworkerid, workerid, task_to_chase, current_detour_distance, current_CT_Worker, current_poi, current_MaxDistanceTask, current_task_NeedTime);
+
+//                                 replacematching++;
+//                             }
+//                             else
+//                             {
+//                                 //       cout << "无可替换任务！！！" << endl; //该任务追过的工人数量加1
+//                                 //      cout << "llll" << endl;
+//                             }
+//                         }
+//                     }
+//                 }
+//                 if (current_num_of_chased_tasks[workerid] >= current_PW[workerid].size()) // 匹配到偏好列表的最后一个，则从Activetworker中移除！
+//                 {
+//                     vector<int>::iterator iter1 = find(current_NextActiveWorker.begin(), current_NextActiveWorker.end(), workerid);
+//                     if (iter1 != current_NextActiveWorker.end())
+//                     {
+//                         current_NextActiveWorker.erase(find(current_NextActiveWorker.begin(), current_NextActiveWorker.end(), workerid));
+//                     }
+
+//                     /*     vector<int>::iterator iter2 = find(NextActiveWorker.begin(), NextActiveWorker.end(), task_to_chase);
+//                         if (iter2 == NextActiveWorker.end())
+//                         {
+//                          cout << "任务偏好列表已达最后一个，任务已移除！" << endl;
+//                          cout << endl;
+//                         }
+//                         */
+//                 }
+//             }
+
+//             current_ActiveWorker.clear();
+//             for (int i = 0; i < current_NextActiveWorker.size(); i++) // 为ActiveWorker重新赋值为NextACTIVETASK
+//                 current_ActiveWorker.push_back(current_NextActiveWorker[i]);
+//             //     cout << "下一轮匹配的工人数：" << NextActiveWorker.size() << endl;
+//             //      cout << "end" << endl;
+//             break;
+//         }
+//         // if (current_ActiveTask.empty()) // 任务空了
+//         // {
+//         //     flagState = 1;
+//         // }
+//         // if (current_ActiveWorker.empty()) // 工人空了
+//         // {
+//         //     flagState = 2;
+//         // }
+//         if (current_ActiveTask.empty() && current_ActiveWorker.empty()) // 工人和任务都空了
+//         {
+//             flagState = 3;
+//         }
+//     }
+
+//     //   cout << "第" << matchingTimes << "轮匹配结束！！！！！" << endl;
+//     // cout << "本轮匹配到配对数量：" << matchingnumber << "\t"
+//     //   << "本轮替换的次数:" << replacematching << endl;
+
+//     for (int i = 0; i < current_CT_Worker.size(); i++) // 这里多余 增加时长
+//     {
+//         for (auto m : current_CT_Worker[i])
+//         {
+//             current_taskGroup[m].sign = false;
+//             global_CT_Worker[current_workerGroup[i].Original_Local].push_back(current_taskGroup[m].Original_Local);
+//         }
+//         current_workerGroup[i].sign = false;
+//     }
+
+//     ShowCTMatching(current_CT_Worker, current_Number_Worker); // 输出配对
+
+//     // for (int i = 0; i < current_CT_Worker.size(); i++)
+//     // {
+//     //     for (auto m : current_CT_Worker[i])
+//     //     {
+//     //         current_taskGroup[m].sign = false;
+//     //         global_CT_Worker[current_workerGroup[i].Original_Local].push_back(current_taskGroup[m].Original_Local);
+//     //     }
+//     //     current_workerGroup[i].sign = false;
+//     // }
+
+//     // ShowCTMatching(current_CT_Worker, current_Number_Worker); // 输出配对
+// }
+
+void Basic_information::match_WorkerTask_AlternateDA(vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, double current_window_endTime, vector<double> &current_Group_workerAD, vector<vector<double>> &current_Group_worker_subTrajectoryDis)
+{
+
+    int current_Number_Worker = current_workerGroup.size();
+    int current_Number_Task = current_taskGroup.size();
+    // double current_detour_distance[current_Number_Task][current_Number_Worker];
+    // int poi[current_Number_Task][current_Number_Worker]; // 存储poiid，记录哪个点是最小的
+    vector<double> current_detour_distance[current_Number_Task]; // 存储当前分组内，任务到每个工人的最近绕路距离，并初始化，防止数组越界。
+    vector<int> current_poi[current_Number_Task];                // 存储poiid，记录哪个点到任务距离是最小的
+    vector<vector<pair<int, double>>> current_PT(Number_Task);
+    vector<vector<pair<int, double>>> current_PW(Number_Worker);
+
+    int current_CW_Task[current_Number_Task];                    // 记录number_task个task的当前对象
+    int current_num_of_chased_worker[current_Number_Task] = {0}; // 任务追求过的工人的数量
+    vector<int> current_ActiveTask;                              // 记录当前活动任务集
+    vector<int> current_NextActiveTask(current_ActiveTask);
+    // vector<int> current_CT_Worker[current_Number_Worker];                            // 记录当前worker已分配的任务，已修改
+    vector<vector<int>> current_CT_Worker(current_Number_Worker);
+    double current_MaxDistanceTask[current_Number_Task] = {0.0}; // 任务允许的最大绕路距离，根据任务的开始和截止时间计算初始化，后面会根据work和task位置关系进一步更新，用于剪枝
+    double current_task_NeedTime = 0.0;                          // 记录到任务位置所需时间并返回
+
+    for (int i = 0; i < current_Number_Task; i++)
+    {
+        current_detour_distance[i] = vector<double>(current_Number_Worker, 0);
+        // current_detour_distance[i].push_back(vector<double>(current_Number_Worker, 0));
+        current_poi[i] = vector<int>(current_Number_Worker, 0);
+    }
+
+    Compute_PTPW_Group_workerBatch(current_PT, current_PW, current_detour_distance, current_taskGroup, current_workerGroup, current_poi); // 诗婷增加, 已完全修改
+    /**
+     * 任务hy
+     */
+    for (int i = 0; i < current_taskGroup.size(); i++)
+    {
+        if (current_PT[i].size() != 0) // 偏好列表不为0才是可用任务
+        {
+            current_ActiveTask.push_back(i);
+        }
+        current_CW_Task[i] = -1;
+    }
+    if (current_ActiveTask.empty())
+    {
+        return;
+    }
+
+    /**
+     * 工人hy
+     */
+
+    int current_num_of_chased_tasks[current_Number_Worker] = {0}; // 工人呢追求过的任务的数量
+
+    vector<int> current_ActiveWorker; // 记录当前活动工人集
+
+    vector<int> current_NextActiveWorker(current_ActiveWorker);
+
+    // double current_MaxDistanceTask[current_Number_Task] = {0.0}; // 任务允许的最大绕路距离，根据任务的开始和截止时间计算初始化，后面会根据work和task位置关系进一步更新，用于剪枝
+    current_task_NeedTime = 0.0; // 记录到任务位置所需时间并返回
+
+    // 初始化ActiveTask,AD
+    for (int i = 0; i < current_workerGroup.size(); i++)
+    {
+        if (current_PW[i].size() != 0)         // 偏好列表不为0才是可用工人//hy完成
+        {                                      //   cout<<i<<"任务YOU偏好列表"<<endl;
+                                               //   cout<<PT[i].size()<<endl;
+            current_ActiveWorker.push_back(i); // hy完成
+        }
+    }
+    // // 存储detour_distance
+    // double AD[current_Number_Worker]; // hy  AT记录worker的剩余可用时间，AD记录worker的剩余可用偏移距离。
+    // Initialize(AD, Sumdis);   / / hy 初始化剩余绕路距离当前时间-剩余时间，已修改到分组划分的位置
+
+    computeMaxDitanceTask(current_MaxDistanceTask, current_taskGroup, current_window_endTime); // 初始化各任务在满足deadline限制的条件下，每个任务可走的最长距离。
+
+    /**
+     * 迭代匹配
+     * 工人批量时，工人不可用或者任务不可用停止循环匹配
+     * 未匹配或匹配失败的批次工人优先匹配
+     * 偏好列表ORDER
+     */
+    cout << "current_taskGroup.size(): " << current_ActiveTask.size() << current_ActiveTask.empty() << endl;
+    int flagState = 0;
+    /***
+     * 0:两个都没完成
+     * 1:任务完成
+     * 2:工人完成
+     * 3:两个皆完成
+     */
+    int matchingTimes = 0;
+    while (flagState < 3)
+    {
+        while (!current_ActiveWorker.empty())
+        {
+            current_NextActiveWorker.clear();
+
+            for (int i = 0; i < current_ActiveWorker.size(); i++) // 为ActiveWorker重新赋值为NextACTIVETASK
+                current_NextActiveWorker.push_back(current_ActiveWorker[i]);
+
+            int matchingnumber = 0, replacematching = 0;
+            for (int i = 0; i < current_ActiveWorker.size(); i++)
+            {
+                int workerid = current_ActiveWorker[i];
+                int order = current_num_of_chased_tasks[workerid];
+
+                int task_to_chase = current_PW[workerid][order].first;
+                // cout << workerid << "目前已经追求的任务数量:" << order << endl;
+                // cout << "任务的偏好工人数：" << PT[taskid].size() << endl;
+                current_num_of_chased_tasks[workerid] = order + 1; // 无论匹配成功与否，该工人追过的任务数量加1。
+
+                // for (auto m : current_taskGroup)
+                // {
+                //   cout << m.Original_Local << "  " << current_Number_Task << endl;
+                // }
+                // for (auto m : current_workerGroup)
+                // {
+                //   cout << "当前工人：" << m.Original_Local << endl;
+                // }
+
+                if (IFWorkerExist(workerid, task_to_chase, current_PT) != current_PT[task_to_chase].end()) // 工人是否在任务的偏好列表里
+                {
+                    // cout << "工人：" << workerid << "目前已匹配的任务数：" << current_CT_Worker[workerid].size() << endl;
+                    if (CurrentTask_Satisfy_TSDA(current_taskGroup, workerid, task_to_chase, current_Group_workerAD, current_detour_distance, current_Group_worker_subTrajectoryDis, current_CT_Worker, current_poi, current_MaxDistanceTask, &current_task_NeedTime, current_window_endTime))
+                    // if (AcceptTask(taskid, worker_to_chase, PW)) //修改+Deadline
+                    {
+
+                        if (current_CW_Task[task_to_chase] == -1) // 任务还未匹配
+                        {
+
+                            // 任务被工人直接接受
+                            current_CW_Task[task_to_chase] = workerid;
+                            current_CT_Worker[workerid].push_back(task_to_chase);
+                            // current_workerGroup[worker_to_chase].sign = false; // 当前分组内工人已被使用，不能成为下一分组的元素
+                            // current_taskGroup[taskid].sign = false;
+                            // global_CT_Worker[current_workerGroup[worker_to_chase].Original_Local].push_back(taskid);
+
+                            cout << "工人：" << workerid << "目前已匹配的任务数：" << current_CT_Worker[workerid].size() << endl;
+                            //---- current_NextActiveWorker.erase(find(current_NextActiveWorker.begin(), current_NextActiveWorker.end(), workerid)); // 更新Activetask
+                            current_NextActiveTask.erase(std::remove(current_NextActiveTask.begin(), current_NextActiveTask.end(), task_to_chase), current_NextActiveTask.end());
+
+                            Update_AD1(workerid, task_to_chase, current_Group_workerAD, current_detour_distance); // 更新可用偏移距离
+                                                                                                                  //       cout << worker_to_chase << "工人的可用时间：" << AT[worker_to_chase] << endl;
+                                                                                                                  //      cout << "工人-任务匹配成功！！！" << endl;
+                                                                                                                  //      cout << " 配对为:"
+                                                                                                                  //           << "(" << taskid << "," << worker_to_chase << ")" << endl;
+                            //*********************************
+                            // 更新任务的最大可行驶距离,以及其它任务的
+                            UpdateTaskDeadline_WSDA(false, 0, workerid, task_to_chase, current_detour_distance, current_CT_Worker, current_poi, current_MaxDistanceTask, current_task_NeedTime);
+                            matchingnumber++;
+                            //  int taskindex = GetIndex_PW(worker_to_chase, taskid, PW);//hy 在这里注销了
+                        }
+                        else // 任务已经暂时匹配给其它工人了
+                        {
+
+                            // 判断任务已匹配的工人和当前工人哪个在偏好列表里排在更前面
+                            int oldworkerid = current_CW_Task[task_to_chase]; // 原工人id
+                            if (GetIndex_PT(workerid, task_to_chase, current_PT) < GetIndex_PT(oldworkerid, task_to_chase, current_PT))
+                            {
+
+                                current_CW_Task[task_to_chase] = workerid;
+                                current_CT_Worker[workerid].push_back(task_to_chase); // 当前工人加入新任务
+
+                                Update_AD1(workerid, task_to_chase, current_Group_workerAD, current_detour_distance); // 更新工人可用偏移距离
+                                cout << "size:" << current_CT_Worker[oldworkerid].size() << endl;
+                                for (auto m : current_CT_Worker[oldworkerid])
+                                {
+                                    cout << m << "  " << task_to_chase << endl;
+                                }
+                                // cout << task_to_chase << "任务已经加入！" << endl;
+                                // cout << task_to_chase << "任务需要从旧工人中移除" << endl;
+                                // cout << "旧工人的当前任务如下:" << endl;
+                                // for (int j = 0; j < current_CT_Worker[oldworkerid].size(); j++)
+                                //   cout << current_CT_Worker[oldworkerid][j] << endl;
+                                // current_ActiveTask.erase(find(current_ActiveTask.begin(), current_NextActiveTask.end(), taskid)); // 更新Activetask
+
+                                current_CT_Worker[oldworkerid].erase(find(current_CT_Worker[oldworkerid].begin(), current_CT_Worker[oldworkerid].end(), task_to_chase)); // erase出错啦！！！ 2021:5.12
+
+                                cout << "删除任务后旧工人的当前任务如下:" << endl;
+                                for (int j = 0; j < current_CT_Worker[oldworkerid].size(); j++)
+                                    cout << current_CT_Worker[oldworkerid][j] << endl;
+
+                                Update_AD2_WSDA(oldworkerid, task_to_chase, current_Group_workerAD, current_detour_distance); // //更新旧工人的可用绕路
+
+                                // 更新可用时间和可用偏移距离
+                                //         cout << "替换成功！" << endl;
+
+                                // 更新已插入任务的最大可行驶距离,replace任务的最大可行驶距离,以及其它以匹配任务的最大可行驶距离
+                                current_MaxDistanceTask[task_to_chase] = (current_taskGroup[task_to_chase].task.Deadline - current_window_endTime) * speed;
+                                UpdateTaskDeadline_WSDA(true, oldworkerid, workerid, task_to_chase, current_detour_distance, current_CT_Worker, current_poi, current_MaxDistanceTask, current_task_NeedTime);
+
+                                replacematching++;
+                            }
+                            else
+                            {
+                                //       cout << "无可替换任务！！！" << endl; //该任务追过的工人数量加1
+                                //      cout << "llll" << endl;
+                            }
+                        }
+                    }
+                }
+                if (current_num_of_chased_tasks[workerid] >= current_PW[workerid].size()) // 匹配到偏好列表的最后一个，则从Activetworker中移除！
+                {
+                    vector<int>::iterator iter1 = find(current_NextActiveWorker.begin(), current_NextActiveWorker.end(), workerid);
+                    if (iter1 != current_NextActiveWorker.end())
+                    {
+                        current_NextActiveWorker.erase(find(current_NextActiveWorker.begin(), current_NextActiveWorker.end(), workerid));
+                    }
+
+                    /*     vector<int>::iterator iter2 = find(NextActiveWorker.begin(), NextActiveWorker.end(), task_to_chase);
+                        if (iter2 == NextActiveWorker.end())
+                        {
+                         cout << "任务偏好列表已达最后一个，任务已移除！" << endl;
+                         cout << endl;
+                        }
+                        */
+                }
+            }
+
+            //     cout << "下一轮匹配的工人数：" << NextActiveWorker.size() << endl;
+            //      cout << "end" << endl;
+            break;
+        }
+
+        while (!current_ActiveTask.empty()) // TSDA
+        {
+
+            current_NextActiveTask.clear();
+
+            for (int i = 0; i < current_ActiveTask.size(); i++) // 为ActiveTask重新赋值为NextACTIVETASK
+                current_NextActiveTask.push_back(current_ActiveTask[i]);
+
+            int matchingnumber = 0, replacematching = 0;
+            for (int i = 0; i < current_ActiveTask.size(); i++)
+            {
+
+                int taskid = current_ActiveTask[i];
+                int order = current_num_of_chased_worker[taskid];
+                int worker_to_chase = current_PT[taskid][order].first;
+                //   cout << taskid << "目前已经追求的工人数量:" << order << endl;
+                //  cout << "任务的偏好工人数：" << PT[taskid].size() << endl;
+                current_num_of_chased_worker[taskid] = order + 1; // 无论匹配成功与否，该任务追过的工人数量加1。
+
+                if (IFTaskExist(worker_to_chase, taskid, current_PW) != current_PW[worker_to_chase].end()) // 任务存在PW
+                {
+
+                    if (CurrentTask_Satisfy_TSDA(current_taskGroup, worker_to_chase, taskid, current_Group_workerAD, current_detour_distance, current_Group_worker_subTrajectoryDis, current_CT_Worker, current_poi, current_MaxDistanceTask, &current_task_NeedTime, current_window_endTime))
+                    // if (AcceptTask(taskid, worker_to_chase, PW)) //修改+Deadline
+                    {
+                        // 任务被工人直接接受
+                        current_CW_Task[taskid] = worker_to_chase;
+                        current_CT_Worker[worker_to_chase].push_back(taskid);
+
+                        // current_workerGroup[worker_to_chase].sign = false; // 当前分组内工人已被使用，不能成为下一分组的元素
+                        // current_taskGroup[taskid].sign = false;
+                        // global_CT_Worker[current_workerGroup[worker_to_chase].Original_Local].push_back(taskid);
+
+                        //   cout << "工人：" << worker_to_chase << "目前已匹配的任务数：" << CT_Worker[worker_to_chase].size() << endl;
+                        current_NextActiveTask.erase(find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid)); // 更新Activetask
+
+                        Update_AD1(worker_to_chase, taskid, current_Group_workerAD, current_detour_distance); // 更新可用偏移距离
+                                                                                                              //       cout << worker_to_chase << "工人的可用时间：" << AT[worker_to_chase] << endl;
+                                                                                                              //      cout << "工人-任务匹配成功！！！" << endl;
+                                                                                                              //      cout << " 配对为:"
+                                                                                                              //           << "(" << taskid << "," << worker_to_chase << ")" << endl;
+                        //*********************************
+                        // 更新任务的最大可行驶距离,以及其它任务的
+                        UpdateTaskDeadline_TSDA(false, 0, worker_to_chase, taskid, current_detour_distance, current_CT_Worker, current_poi, current_MaxDistanceTask, current_task_NeedTime);
+                        matchingnumber++;
+                        //  int taskindex = GetIndex_PW(worker_to_chase, taskid, PW);
+                    }
+                    else
+                    {
+                        //     for (int i = 0; i < After_Task.size(); i++)
+                        //      cout << "aftertask:" << After_Task[i].first << endl;
+                        //      for (int i = 0; i < RPTask.size(); i++)
+                        //      cout << "replacetask:" << RPTask[i] << endl;
+                        //      cout << "endddd!" << endl;
+                        //*************修改寻找替换任务
+                        //  int MinReplaceTask =  Find_ReplaceTask(worker_to_chase, taskid, PW); //找到报酬最小的任务
+                        int MinReplaceTask = FindReplaceTaskNew_TSDA(worker_to_chase, taskid, current_PW, current_Group_workerAD, current_detour_distance, current_Group_worker_subTrajectoryDis, current_CT_Worker, current_poi, current_MaxDistanceTask, &current_task_NeedTime, current_taskGroup, current_window_endTime);
+                        if (MinReplaceTask != -1) // 存在可替换的任务
+                        {
+                            current_CW_Task[taskid] = worker_to_chase;
+                            current_CW_Task[MinReplaceTask] = -1; // 被替换出去的工人的任务变为-1
+
+                            // RemoveReplaceTask(worker_to_chase, taskid, MinReplaceTask);  //从工人已匹配中移除MinReplaceTask
+                            current_CT_Worker[worker_to_chase].erase(find(current_CT_Worker[worker_to_chase].begin(), current_CT_Worker[worker_to_chase].end(), MinReplaceTask));
+                            current_CT_Worker[worker_to_chase].push_back(taskid);
+
+                            // AddTask_into_AT(worker_to_chase, taskid, MinReplaceTask);   //将 MinReplaceTask加入AT
+                            if (current_num_of_chased_worker[MinReplaceTask] < current_PT[MinReplaceTask].size()) //****4.29：21：13 Active任务需要还有可求婚的对象
+                                current_NextActiveTask.push_back(MinReplaceTask);
+                            current_NextActiveTask.erase(find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid)); // 将taskid任务移除AT；
+
+                            Update_AD2(worker_to_chase, taskid, MinReplaceTask, current_Group_workerAD, current_detour_distance); // 更新可用偏移距离
+                                                                                                                                  //*********************************
+                            // 更新已插入任务的最大可行驶距离,replace任务的最大可行驶距离,以及其它以匹配任务的最大可行驶距离
+                            UpdateTaskDeadline_TSDA(true, MinReplaceTask, worker_to_chase, taskid, current_detour_distance, current_CT_Worker, current_poi, current_MaxDistanceTask, current_task_NeedTime);
+                            //******替换任务的Deadline更新为初始的值
+                            current_MaxDistanceTask[MinReplaceTask] = current_taskGroup[MinReplaceTask].task.Deadline * speed;
+                            //   cout <<"任务"<<MinReplaceTask<<"替换成功!" <<taskid<< endl;
+                            replacematching++;
+                            //  int taskindex = GetIndex_PW(worker_to_chase, taskid, PW);
+                            //   int MinRTindex = GetIndex_PW(worker_to_chase, MinReplaceTask, PW);
+                            //   int workerindex = GetIndex_PT(worker_to_chase, MinReplaceTask, PT);
+                        }
+                        else
+                        {
+                            //      cout << "无可替换任务！！！" << endl; //该任务追过的工人数量加1
+                            //      cout << "llll" << endl;
+                        }
+                    }
+                }
+                if (current_num_of_chased_worker[taskid] == current_PT[taskid].size()) // 匹配到偏好列表的最后一个，则从ActivetASK中移除！
+                {
+
+                    vector<int>::iterator iter1 = find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid);
+                    if (iter1 != current_NextActiveTask.end())
+                    {
+                        current_NextActiveTask.erase(find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid));
+                    }
+                    vector<int>::iterator iter2 = find(current_NextActiveTask.begin(), current_NextActiveTask.end(), taskid);
+                    if (iter2 == current_NextActiveTask.end())
+                    {
+                        //    cout << "任务偏好列表已达最后一个，任务已移除！" << endl;
+                        //    cout << endl;
+                    }
+                }
+            }
+
+            //   cout << "第" << matchingTimes << "轮匹配结束！！！！！" << endl;
+            // cout << "本轮匹配到配对数量：" << matchingnumber << "\t"
+            //   << "本轮替换的次数:" << replacematching << endl;
+
+            //   cout << "下一轮匹配的任务数：" << NextActiveTask.size() << endl;
+            //   cout << "end" << endl;
+            break;
+        }
+
+        /**
+         * 迭代匹配
+         * 工人批量时，工人不可用或者任务不可用停止循环匹配
+         * 未匹配或匹配失败的批次工人优先匹配
+         * 偏好列表ORDER
+         */
+        cout << "current_taskGroup.size(): " << current_ActiveWorker.size() << current_ActiveWorker.empty() << endl;
+
+        current_ActiveTask.clear();
+        for (int i = 0; i < current_NextActiveTask.size(); i++) // 为ActiveTask重新赋值为NextACTIVETASK
+            current_ActiveTask.push_back(current_NextActiveTask[i]);
+
+        current_ActiveWorker.clear();
+        for (int i = 0; i < current_NextActiveWorker.size(); i++) // 为ActiveWorker重新赋值为NextACTIVETASK
+            current_ActiveWorker.push_back(current_NextActiveWorker[i]);
+
+        // if (current_ActiveTask.empty()) // 任务空了
+        // {
+        //     flagState = 1;
+        // }
+        // if (current_ActiveWorker.empty()) // 工人空了
+        // {
+        //     flagState = 2;
+        // }
+        if (current_ActiveTask.empty() && current_ActiveWorker.empty()) // 工人和任务都空了
+        {
+            flagState = 3;
+        }
+    }
+
+    //   cout << "第" << matchingTimes << "轮匹配结束！！！！！" << endl;
+    // cout << "本轮匹配到配对数量：" << matchingnumber << "\t"
+    //   << "本轮替换的次数:" << replacematching << endl;
+
+    for (int i = 0; i < current_CT_Worker.size(); i++) // 这里多余 增加时长
+    {
+        for (auto m : current_CT_Worker[i])
+        {
+            current_taskGroup[m].sign = false;
+            global_CT_Worker[current_workerGroup[i].Original_Local].push_back(current_taskGroup[m].Original_Local);
+        }
+        current_workerGroup[i].sign = false;
+    }
+
+    ShowCTMatching(current_CT_Worker, current_Number_Worker); // 输出配对
+
+    // for (int i = 0; i < current_CT_Worker.size(); i++)
+    // {
+    //     for (auto m : current_CT_Worker[i])
+    //     {
+    //         current_taskGroup[m].sign = false;
+    //         global_CT_Worker[current_workerGroup[i].Original_Local].push_back(current_taskGroup[m].Original_Local);
+    //     }
+    //     current_workerGroup[i].sign = false;
+    // }
+
+    // ShowCTMatching(current_CT_Worker, current_Number_Worker); // 输出配对
+}
+
+// 其他
 /***
  * 读取全文需要的数据
  * 从本地获取数据
@@ -3422,7 +5094,7 @@ void Basic_information::erase_Task_worker_Timeout(std::vector<CURRENT_TASK_GROUP
  * dataOption
  *      1：Berlin，   2：G-mission   3:T-drive
  */
-bool optionDataset(int dataOption, Basic_information &info, vector<vector<double>> &global_Worker_subTrajectoryDis, vector<double> &Sumdis, double endtimeX)
+bool optionDataset(int dataOption, Basic_information &info, vector<vector<double>> &global_Worker_subTrajectoryDis, vector<double> &Sumdis, double workEndtimeX, double taskEndtimeX, double rangeX, double scoreX)
 {
     ofstream out("../Satisfaction_Results.txt", ios::app);
     auto start1 = std::chrono::system_clock::now();
@@ -3439,11 +5111,11 @@ bool optionDataset(int dataOption, Basic_information &info, vector<vector<double
         }
         // 任务的：分数、奖励、时间 都是生成的。
         // 工人的：绕路范围、分数、时间都是生成的
-        double rangeX = 2000;      // 工人绕路范围，固定数值
-        double scoreX = 1;         // 工人的分数，这是一个参数
+        // double rangeX = 2000;      // 工人绕路范围，固定数值
+        // double scoreX = 1;         // 工人的分数，这是一个参数
         int Number_BusStop = 4346; // 公交站数量，为数据集固定的，轨迹数量也是固定的
 
-        DataManager datasets(endtimeX, rangeX, scoreX, info.speed); //  生成工人信息分数，评分时间，等等等
+        DataManager datasets(workEndtimeX, taskEndtimeX, rangeX, scoreX, info.speed); //  生成工人信息分数，评分时间，等等等
 
         datasets.ReadLocationForTask(info.global_tasks);                                               // 从文件读取获取任务位置，无需修改
         datasets.Prodece_Task_Reward_Minscore_Deadline(info.global_tasks);                             // 生成任务数据，增加开始时间并排序，已修改
@@ -3467,9 +5139,9 @@ bool optionDataset(int dataOption, Basic_information &info, vector<vector<double
         // 任务：评分（根据工人分数生成，不要变）、时间（自动生成）
         // 工人：范围（根据任务奖励生成，不要变）、时间（自动生成）
 
-        double rangeX = 0.3;                                                 // 接任务的范围，需要调整
-        double scoreX = 1;                                                   // 工人的分数，这是一个参数
-        DataManage_G_mission datasets(endtimeX, rangeX, scoreX, info.speed); //    生成工人信息分数，评分时间，等等等，已修改
+        double rangeX = 0.3; // 接任务的范围，需要调整
+        // double scoreX = 1;                                                                     // 工人的分数，这是一个参数
+        DataManage_G_mission datasets(workEndtimeX, taskEndtimeX, rangeX, scoreX, info.speed); //    生成工人信息分数，评分时间，等等等，已修改
         //
         // Prodece_Task_Reward_Minscore(task);
 
@@ -3492,7 +5164,7 @@ bool optionDataset(int dataOption, Basic_information &info, vector<vector<double
         }
 
         // cin >> Worker_Record >> Number_Trajectory_Point;
-        DataManager_T_Drive datasets(endtimeX, 2000, 1, info.speed, Worker_Record, Number_Trajectory_Point); // endtimeX;rangeX;  scoreX;   speed;    Worker_Record; Number_Trajectory_Point;
+        DataManager_T_Drive datasets(workEndtimeX, taskEndtimeX, rangeX, scoreX, info.speed, Worker_Record, Number_Trajectory_Point); // endtimeX;rangeX;  scoreX;   speed;    Worker_Record; Number_Trajectory_Point;
 
         datasets.Get_Trajectory_locations();
         datasets.Caculate_Sumdist_Trajectory();
@@ -3515,6 +5187,10 @@ bool optionDataset(int dataOption, Basic_information &info, vector<vector<double
     out.close();
     return true;
 }
+
+/***
+ *
+ */
 
 /***
  * 下面是多余的函数

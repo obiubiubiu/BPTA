@@ -38,26 +38,6 @@ using namespace std;
 #define PI 3.1415926535897932384626433832795 // 正确
 #define EARTH_RADIUS 6378.137                // 地球半径 KM
 
-int scoreMinRangeTask = 60;
-int scoreMaxRangeTask = 100; // 生成分数范围（berlin、T-dirve、）(Gmission根据工人的自带生成任务评分)
-
-int rewardMinRangeTask = 60;
-int rewardMaxRangeTask = 80; // 报酬范围(berlin、T-dirve、) (Gmission 数据集自带)
-
-int deadlineMinRangeTask = 20;
-int deadlineMaxRangeTask = 80; // 截止日期（berlin、T-dirve、Gmission、）全部自己生成
-
-int startTimeMinRangeTask = 0;
-int startTimeMaxRangeTask = 50; // 开始日期（berlin、T-dirve、Gmission、）全部自己生成
-
-// 对于工人说
-int scoreMinRangeWorker = 50;
-int scoreMaxRangeWorker = 110; // 生成分数范围(berlin、T-dirve)、(Gmission 数据集自带评分)
-
-int startTimeMinRangeWorker = 0;
-int startTimeMaxRangeWorker = 60; // 开始日期（berlin、T-dirve、Gmission、）全部自己生成
-                                  // 截止日期根据开始日期和工人的时间进行计算
-
 // int current_WorkNumber = 0;
 // int current_taskNumber = 0;
 int global_Current_workID = 0;
@@ -128,6 +108,7 @@ public:
     double speed; // 工人的移动速度1km/min,60km/h,1km/min
     int Number_Task;
     int Number_Worker;
+    double rangeX;
     int Capacity;
     int Wmax;                                              // hy时间窗口
     double Tmax;                                           // hy任务窗口
@@ -184,8 +165,10 @@ public:
     void print_groupTasks_addEndTime();
     void showTask(vector<TASK> &task); // 打印任务
     void showWorker(vector<WORKER> &worker);
-    void ShowCTMatching(vector<int> CT_Worker[], int current_Number_Worker);        // 修改
-    void ShowCTMatching(vector<vector<int>> &CT_Worker, int current_Number_Worker); // 修改
+    void ShowCTMatching(vector<int> CT_Worker[], int current_Number_Worker);                              // 修改
+    void ShowCTMatching(const char *filename, vector<vector<int>> &CT_Worker, int current_Number_Worker); // 修改
+    void ShowCTMatching(vector<vector<int>> &CT_Worker, int current_Number_Workers);                      // 修改
+
     void ShowMatching(vector<pair<int, int>> &Matching);
     void printf_Satisfaction_Results(string alg_name, double run_time);
     void printf_Results_to_txt(double task_satis_results, double worker_satis_results, string name, string alg_name, double run_time); // 输出结果
@@ -242,7 +225,7 @@ public:
     void Grouping_Framework_WorkerBatch(vector<TASK> &tasks, vector<WORKER> &workers, double Wmax, int Tmax, vector<double> &Sumdis, vector<vector<double>> &global_Worker_subTrajectoryDis);
     void match_WorkerTask_workerBatch(vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, double current_window_endTime, vector<double> &current_Group_workerAD, vector<vector<double>> &current_Group_worker_subTrajectoryDis);
     void Compute_PTPW_Group_workerBatch(vector<vector<pair<int, double>>> &current_PT, vector<vector<pair<int, double>>> &current_PW, vector<double> current_detour_distance[], vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, vector<int> current_poi[]);
-    void iterator_Match_WorkBatch(vector<CURRENT_WORKERS_GROUP> &current_workerGroup, vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<vector<pair<int, double>>> &current_PW,
+    void iterator_Match_WorkBatch(vector<CURRENT_WORKERS_GROUP> &current_workerGroup, vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<vector<pair<int, double>>> &current_PW, vector<vector<pair<int, double>>> &current_PT,
                                   vector<double> &current_Group_workerAD, vector<double> current_detour_distance[], vector<vector<double>> &current_Group_worker_subTrajectoryDis,
                                   vector<int> CT_Worker[], double MaxDistanceTask[], double *current_task_NeedTime, vector<int> current_poi[], double nowtime);
     //  4.3 TPPG分批处理函数
@@ -270,16 +253,35 @@ public:
     void Grouping_Framework_WSDA(vector<TASK> &tasks, vector<WORKER> &workers, double Wmax, int Tmax, vector<double> &Sumdis, vector<vector<double>> &global_Worker_subTrajectoryDis);
     void match_WorkerTask_WSDA(vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, double current_window_endTime, vector<double> &current_Group_workerAD, vector<vector<double>> &current_Group_worker_subTrajectoryDis);
     void UpdateTaskDeadline_WSDA(bool replace, int replaceWorkid, int workerid, int taskid, vector<double> current_detour_distance[], vector<vector<int>> &CT_Worker, vector<int> poi[], double MaxDistanceTask[], double current_task_NeedTime);
-    // 4.7 对比算法全局匹配
-    // 以贪心算法，为基准来对比
+    // 4.7-1 对比算法全局匹配
+    // 以出现时间为准，考虑双边的利益来对比
     void whole_Greedy_Framework();                                                                                                                                                                                                                                                                                     // 入口
     void erase_Task_worker_Timeout(std::vector<CURRENT_TASK_GROUP> &taskList, vector<CURRENT_WORKERS_GROUP> &workerList, double nowTime, vector<CURRENT_WORKER_STATE> &current_workerState, vector<CURRENT_TASK_STATE> &current_taskState);                                                                            // 遍历加入数据，并删除超时且无用的数据
     void match_Whole(vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, double current_Time, vector<CURRENT_WORKER_STATE> &workStates, vector<CURRENT_TASK_STATE> &taskStates, bool sign);                                                                             // 开始匹配
     double Caculate_mindist_whole(int global_workerid, int current_taskid, vector<CURRENT_TASK_GROUP> &task, vector<CURRENT_TASK_STATE> &taskState);                                                                                                                                                                   // 计算绕路点和任务之间的最小距离
     bool CurrentTask_Satisfy_whole(vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, int current_taskid, vector<CURRENT_TASK_STATE> &taskStates, vector<CURRENT_WORKER_STATE> &workStates, double current_Time, int current_workerid, double *current_task_NeedTime); // 计算是否满足条件
     void UpdateTaskDeadline_whole(int current_workerid, int taskid, vector<CURRENT_WORKER_STATE> &workStates, vector<CURRENT_TASK_STATE> &taskStates, double current_task_NeedTime, vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup);                                // 当加入新的数据时开始更新
+    // 4.7-2 时间随机
+    // 以出现时间为准，不考虑双边的利益来对比
+    void time_random_Framework();
+    void time_random_match(vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, double current_Time, vector<CURRENT_WORKER_STATE> &workStates, vector<CURRENT_TASK_STATE> &taskStates, bool sign); // 开始匹配
 
-    //  5、全局偏好结果结算
+    // 4.8ReverseDA_Framework
+    void Grouping_Framework_ReverseDA(vector<TASK> &tasks, vector<WORKER> &workers, double Wmax, int Tmax, vector<double> &Sumdis, vector<vector<double>> &global_Worker_subTrajectoryDis);
+    void match_WorkerTask_ReverseDA(vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, double current_window_endTime, vector<double> &current_Group_workerAD, vector<vector<double>> &current_Group_worker_subTrajectoryDis);
+
+    // 4.9 AlternateDA_Framework 交替出现
+    void Grouping_Framework_AlternateDA(vector<TASK> &tasks, vector<WORKER> &workers, double Wmax, int Tmax, vector<double> &Sumdis, vector<vector<double>> &global_Worker_subTrajectoryDis);
+    void match_WorkerTask_AlternateDA(vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, double current_window_endTime, vector<double> &current_Group_workerAD, vector<vector<double>> &current_Group_worker_subTrajectoryDis);
+    // 4.10 random 随机匹配
+    void whole_random_Framework();
+    // void erase_Task_worker_Timeout(std::vector<CURRENT_TASK_GROUP> &taskList, vector<CURRENT_WORKERS_GROUP> &workerList, double nowTime, vector<CURRENT_WORKER_STATE> &current_workerState, vector<CURRENT_TASK_STATE> &current_taskState);                                                                            // 遍历加入数据，并删除超时且无用的数据
+    void random_match_Whole(vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, double current_Time, vector<CURRENT_WORKER_STATE> &workStates, vector<CURRENT_TASK_STATE> &taskStates, bool sign); // 开始匹配
+    // double Caculate_mindist_whole(int global_workerid, int current_taskid, vector<CURRENT_TASK_GROUP> &task, vector<CURRENT_TASK_STATE> &taskState);                                                                                                                                                                   // 计算绕路点和任务之间的最小距离
+    // bool CurrentTask_Satisfy_whole(vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup, int current_taskid, vector<CURRENT_TASK_STATE> &taskStates, vector<CURRENT_WORKER_STATE> &workStates, double current_Time, int current_workerid, double *current_task_NeedTime); // 计算是否满足条件
+    // void UpdateTaskDeadline_whole(int current_workerid, int taskid, vector<CURRENT_WORKER_STATE> &workStates, vector<CURRENT_TASK_STATE> &taskStates, double current_task_NeedTime, vector<CURRENT_TASK_GROUP> &current_taskGroup, vector<CURRENT_WORKERS_GROUP> &current_workerGroup);                                // 当加入新的数据时开始更新
+
+    //   5、全局偏好结果结算
     int GetIndex_PT(int workerid, int taskid, vector<vector<pair<int, double>>> &PT);
     int GetIndex_PW(int workerid, int taskid, vector<vector<pair<int, double>>> &PW);
 

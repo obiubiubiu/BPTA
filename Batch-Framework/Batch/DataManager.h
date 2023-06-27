@@ -4,6 +4,25 @@
 // void Compute_Preference_list(TASK task, WORKER worker[Number_Worker],int *PT){    //输入一个task,全部的worker，求出task对worker的偏好列表,以及任务的偏好列表PT
 // 4.12 21:36 OMG,文件的读取存入响应的数据结构还没实现
 #include "Basic_information.h"
+int scoreMinRangeTask = 60;
+int scoreMaxRangeTask = 100; // 生成分数范围（berlin、T-dirve、）(Gmission根据工人的自带生成任务评分)
+
+int rewardMinRangeTask = 60;
+int rewardMaxRangeTask = 80; // 报酬范围(berlin、T-dirve、) (Gmission 数据集自带)
+
+int deadlineMinRangeTask = 20;
+int deadlineMaxRangeTask = 80; // 截止日期（berlin、T-dirve、Gmission、）全部自己生成
+
+int startTimeMinRangeTask = 0;
+int startTimeMaxRangeTask = 50; // 开始日期（berlin、T-dirve、Gmission、）全部自己生成
+
+// 对于工人说
+int scoreMinRangeWorker = 50;
+int scoreMaxRangeWorker = 110; // 生成分数范围(berlin、T-dirve)、(Gmission 数据集自带评分)
+
+int startTimeMinRangeWorker = 0;
+int startTimeMaxRangeWorker = 60; // 开始日期（berlin、T-dirve、Gmission、）全部自己生成
+                                  // 截止日期根据开始日期和工人的时间进行计算
 
 /*******
  * 修改了任务生成时间，要求开始时间在截止时间之前
@@ -16,6 +35,7 @@ private:
     /* data */
 public:
     double endtimeX;
+    double taskEndtimeX;
     double rangeX;
     double scoreX;
     double speed;
@@ -25,7 +45,7 @@ public:
     void Prodece_Worker_endTime_range_score(vector<WORKER> &worker, vector<double> &Sumdis); //, double endtimeX, double rangeX, double scoreX, int speed
 
     DataManager(/* args */);
-    DataManager(double endtimeX_, double rangeX_, double scoreX_, double speed_) : endtimeX(endtimeX_), rangeX(rangeX_), scoreX(scoreX_), speed(speed_){};
+    DataManager(double endtimeX_, double taskEndtimeX_, double rangeX_, double scoreX_, double speed_) : endtimeX(endtimeX_), taskEndtimeX(taskEndtimeX_), rangeX(rangeX_), scoreX(scoreX_), speed(speed_){};
 
     ~DataManager();
 };
@@ -216,6 +236,7 @@ private:
 
 public:
     double endtimeX;
+    double taskEndtimeX;
     double rangeX;
     double scoreX;
     double speed;
@@ -225,7 +246,7 @@ public:
     void Get_Trajectory_locations(vector<WORKER> &worker);
     void Prodece_Worker_endTime_range_score(vector<WORKER> &worker, vector<double> &Sumdis); // double endtimeX, double rangeX, double scoreX, int speed
 
-    DataManage_G_mission(double endtimeX_, double rangeX_, double scoreX_, double speed_) : endtimeX(endtimeX_), rangeX(rangeX_), scoreX(scoreX_), speed(speed_){};
+    DataManage_G_mission(double endtimeX_, double taskEndtimeX_, double rangeX_, double scoreX_, double speed_) : endtimeX(endtimeX_), taskEndtimeX(taskEndtimeX_), rangeX(rangeX_), scoreX(scoreX_), speed(speed_){};
     DataManage_G_mission(/* args */);
     ~DataManage_G_mission();
 };
@@ -400,6 +421,7 @@ private:
     // worker number不超过这个record就行了
 public:
     double endtimeX;
+    double taskEndtimeX;
     double rangeX;
     double scoreX;
     double speed;
@@ -420,7 +442,7 @@ public:
 
     // void ReproduceWorker(WORKER (&worker)[Number_Worker], WORKER (&workerRecord)[Worker_Record], double (&Sumdis1)[Worker_Record], double (&Sumdis)[Number_Worker], vector<double> (&Worker_subTrajectoryDis)[Number_Worker], vector<double> (&Worker_subTrajectoryDis1)[Worker_Record]);
     // void Produce_Random_Task_ForTrajectoryPoint(int tasknumber, int trajectory_point);
-    DataManager_T_Drive(double endtimeX_, double rangeX_, double scoreX_, double speed_, int Worker_Record_, int Number_Trajectory_Point_) : endtimeX(endtimeX_), rangeX(rangeX_), scoreX(scoreX_), speed(speed_), Worker_Record(Worker_Record_), Number_Trajectory_Point(Number_Trajectory_Point_)
+    DataManager_T_Drive(double endtimeX_, double taskEndtimeX_, double rangeX_, double scoreX_, double speed_, int Worker_Record_, int Number_Trajectory_Point_) : endtimeX(endtimeX_), taskEndtimeX(taskEndtimeX_), rangeX(rangeX_), scoreX(scoreX_), speed(speed_), Worker_Record(Worker_Record_), Number_Trajectory_Point(Number_Trajectory_Point_)
     {
         workerRecord.resize(Worker_Record_); // 从数据集文件中获得
         Sumdis1.resize(Worker_Record_);
