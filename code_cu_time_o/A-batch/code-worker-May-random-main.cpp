@@ -136,7 +136,7 @@ int main(int argc, char const *argv[])
                                                 else if (algorithmOption == 2)
                                                 {
                                                     /*****
-                                                     * WPPG算法 计时开始,,虽然已经完成，但是还有可能存在瑕疵需要修稿
+                                                     * WPPG算法 计时开始,
                                                      */
                                                     alg_name = "WPPG-Algorithm";
                                                     info.begin_Algorithm(alg_name);
@@ -150,7 +150,7 @@ int main(int argc, char const *argv[])
                                                 else if (algorithmOption == 3)
                                                 {
                                                     /*****
-                                                     * TPPGbatch算法 计时开始还没开始修改。
+                                                     * TPPGbatch算法 
                                                      */
                                                     alg_name = "TPPG-batch-Algorithm";
                                                     info.begin_Algorithm(alg_name);
@@ -178,7 +178,7 @@ int main(int argc, char const *argv[])
                                                 else if (algorithmOption == 5)
                                                 {
                                                     /*****
-                                                     * TSDA算法 计时开始,,虽然已经完成，但是还有可能存在瑕疵需要修稿
+                                                     * TSDA算法 计时开始,
                                                      */
                                                     alg_name = "TSDA-Algorithm";
                                                     info.begin_Algorithm(alg_name);
@@ -191,7 +191,7 @@ int main(int argc, char const *argv[])
                                                 else if (algorithmOption == 6)
                                                 {
                                                     /*****
-                                                     * WSDA算法 计时开始,,虽然已经完成，但是还有可能存在瑕疵需要修稿
+                                                     * WSDA算法 计时开始,
                                                      */
                                                     alg_name = "WSDA-Algorithm";
                                                     info.begin_Algorithm(alg_name);
@@ -231,21 +231,7 @@ int main(int argc, char const *argv[])
                                                     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
                                                     info.printf_Satisfaction_Results(alg_name, duration.count());
                                                 }
-                                                else if (algorithmOption == 9)
-
-                                                {
-                                                    /*****
-                                                     * time_random 算法 按照时间先来先匹配,没有涉及双边的要求
-                                                     */
-
-                                                    alg_name = "time_random-Algorithm";
-                                                    info.begin_Algorithm(alg_name);
-                                                    auto start = std::chrono::high_resolution_clock::now();
-                                                    info.time_random_Framework();
-                                                    auto end = std::chrono::high_resolution_clock::now();
-                                                    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-                                                    info.printf_Satisfaction_Results(alg_name, duration.count());
-                                                }
+                                              
                                             }
                                             else
                                             {
